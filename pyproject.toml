@@ -1,0 +1,96 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sortfin"
+dynamic = ["version"]
+description = ''
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+keywords = []
+authors = [
+  { name = "florent vassaux", email = "florent.vassaux@gmail.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = ["PyYAML"]
+
+[project.urls]
+Documentation = "https://github.com/florent vassaux/sortfin#readme"
+Issues = "https://github.com/florent vassaux/sortfin/issues"
+Source = "https://github.com/florent vassaux/sortfin"
+
+[project.scripts]
+sortfin-cli="sortfin.cli.cli_statement:main"
+
+[tool.hatch.version]
+path = "src/sortfin/__about__.py"
+
+[tool.hatch.build]
+include = [
+  "src/sortfin/**/*.py",  # Include all Python files in the package
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sortfin"]
+
+[tool.hatch.envs.default]
+extra-dependencies = [
+  "pytest>=7.0.0",
+]
+
+[tool.hatch.envs.default.env-vars]
+PYTHONPATH = "src"
+
+[tool.hatch.envs.main.scripts]
+debug = 'python -c "import os; print(os.environ)"'
+test = "pytest {args:tests}"
+build = "pip install -e ."
+sortfin-cli = "sortfin.cli.cli_statement:main"
+
+[tool.hatch.envs.lint]
+extra-dependencies = [
+  "ruff>=0.0.289",  # Add Ruff as a dependency
+]
+
+[tool.hatch.envs.lint.scripts]
+help = "ruff -h"
+check = "ruff check src tests"  # Run Ruff to check for linting issues
+fix = "ruff check src tests --fix"  # Run Ruff to automatically fix issues
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/sortfin tests}"
+
+[tool.coverage.run]
+source_pkgs = ["sortfin", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/sortfin/__about__.py",
+]
+
+[tool.coverage.paths]
+sortfin = ["src/sortfin", "*/sortfin/src/sortfin"]
+tests = ["tests", "*/sortfin/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]

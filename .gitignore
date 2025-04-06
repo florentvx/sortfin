@@ -1,0 +1,5 @@
+dist/*
+main/*
+src/sortfin/__pycache__/*
+src/sortfin/cli/__pycache__/*
+tests/__pycache__/*
