@@ -47,7 +47,7 @@ class asset:
         if remainer == 10 ** self.decimal_param:
             remainer = 0
             delta = 1
-        n = int(math.log(value + delta, 10)) + 1
+        n = int(math.log(value + 1e-10 + delta, 10)) + 1
         m = n % self.separator_param
         value_list = list(str(int(value) + delta))
         res = ''.join(value_list[:m])

@@ -1,5 +1,7 @@
+.vscode/
 dist/*
 main/*
+src/__pycache__/*
 src/sortfin/__pycache__/*
 src/sortfin/cli/__pycache__/*
 tests/__pycache__/*

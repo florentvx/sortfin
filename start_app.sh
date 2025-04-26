@@ -1,0 +1,19 @@
+#!/bin/bash
+
+
+# Optional: Source the SortFin prompt script if it exists
+if [ -f "$(dirname "$0")/src/sortfin/sortfin_prompt.sh" ]; then
+    source "$(dirname "$0")/src/sortfin/sortfin_prompt.sh"
+fi
+
+# Locate the Hatch environment directory
+HATCH_ENV_DIR=$(hatch env find main)
+
+# Locate the directory of the built sortfin-cli.exe
+SORTFIN_CLI_DIR="$HATCH_ENV_DIR/Scripts"
+
+# Add the directory to PYTHONPATH
+export PATH="$SORTFIN_CLI_DIR:$PATH"
+
+# Start a new Bash session
+exec bash --rcfile <(echo "export PYTHONPATH=$PYTHONPATH; source ./src/sortfin/sortfin_prompt.sh; cd /c/WorkArea/temp/sortfin;echo Hello World!")
