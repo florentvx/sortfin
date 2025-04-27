@@ -1,5 +1,5 @@
 import unittest
-from sortfin.fx_market import fx_market
+from src.sortfin.fx_market import fx_market
 
 from .test_asset import EUR, GBP, JPY, USD
 

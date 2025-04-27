@@ -1,27 +1,27 @@
 import unittest
 import datetime as dt
 
-from sortfin import statement, account, account_path, asset
+from src.sortfin import statement, account, account_path, asset
 
 from .test_asset import EUR, USD, JPY, GBP
 from .test_fx_market import FXM
 
 ACC_TEST = account("root", unit=EUR, 
-        sub_accounts=[
-            account("europe", unit=EUR, 
-                sub_accounts=[
-                    account("my_bank", unit=EUR, value=1000),
-                    account("my_loan", unit=EUR, value=-100)
-                ]
-            ),
-            account("usa", unit=USD,
-                sub_accounts=[
-                    account("my_bank", unit=USD, value=250),
-                    account("my_investment", unit=USD, value=145600.2)
-                ]
-            )
-        ]
-    )
+    sub_accounts=[
+        account("europe", unit=EUR, 
+            sub_accounts=[
+                account("my_bank", unit=EUR, value=1000),
+                account("my_loan", unit=EUR, value=-100)
+            ]
+        ),
+        account("usa", unit=USD,
+            sub_accounts=[
+                account("my_bank", unit=USD, value=250),
+                account("my_investment", unit=USD, value=145600.2)
+            ]
+        )
+    ]
+)
 
 class TestStatement(unittest.TestCase):
 

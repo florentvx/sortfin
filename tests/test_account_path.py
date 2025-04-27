@@ -1,5 +1,5 @@
 import unittest
-from sortfin.account_path import account_path
+from src.sortfin.account_path import account_path
 
 
 class TestAccountPath(unittest.TestCase):

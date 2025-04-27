@@ -1,5 +1,5 @@
 import unittest
-from sortfin.asset import asset
+from src.sortfin.asset import asset
 
 
 GBP = asset("GBP", "£")

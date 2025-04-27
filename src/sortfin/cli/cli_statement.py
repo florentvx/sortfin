@@ -18,7 +18,7 @@ def save_statement_to_yaml(state: statement, file_path: Path):
     with open(file_path, 'w') as file:
         yaml.safe_dump(state_dict, file)
 
-def main():
+def main() -> None:
     session_name='<UNSET>'
     session_path = Path.cwd() / ".sortfin" / ".session"
     with session_path.open() as session_file:
@@ -173,11 +173,12 @@ def main():
             print("Please provide the account path and new asset name using --account_path and --asset_name")
             return
         account_to_modify = state.get_account(account_path(args.account_path))
-        new_asset = next((a for a in state.fx_market.get_asset_database() if a.name == args.asset_name), None)
-        if not new_asset:
+        changed_asset : list[asset] = [a for a in state.fx_market.get_asset_database() if a.name == args.asset_name]
+        if len(changed_asset) == 0:
             print(f"Asset {args.asset_name} not found in the asset database")
             return
-        account_to_modify.unit = new_asset
+        assert len(changed_asset) == 1, f"Multiple assets found with name {args.asset_name}"
+        account_to_modify.unit = changed_asset[0]
         modified = True
 
     if modified:

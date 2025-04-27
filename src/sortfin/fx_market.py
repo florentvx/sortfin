@@ -28,8 +28,10 @@ class fx_market:
             self, 
             asset: asset, 
             quote_dict = None,
-            filter_asset_list : list[asset] = [],
+            filter_asset_list : list[asset]|None = None,
         ) -> dict[tuple[asset, asset], float]:
+        if filter_asset_list is None:
+            filter_asset_list = []
         if quote_dict is None:
             quote_dict = {**self.quotes, **self.secondary_quotes}
         return {
@@ -39,7 +41,9 @@ class fx_market:
                 (k[0] not in filter_asset_list and k[1] not in filter_asset_list)
         }
 
-    def _get_quote(self, asset1: asset, asset2: asset, filter_asset_list : list[asset] = []):
+    def _get_quote(self, asset1: asset, asset2: asset, filter_asset_list : list[asset]|None = None) -> float|None:
+        if filter_asset_list is None:
+            filter_asset_list = []
         if asset1 == asset2:
             return 1.0
         asset1_dict = self._filter_quote_dict(asset1, filter_asset_list=filter_asset_list)
@@ -73,10 +77,17 @@ class fx_market:
                 return result
         return None  # Return None if no quote is found
             
-    def get_quote(self, asset1, asset2):
+    def get_quote(self, asset1: asset, asset2: asset|str) -> float|None:
+        if isinstance(asset2, str):
+            l_asset2 = [a for a in self.get_asset_database() if a.name == asset2]
+            if len(l_asset2) == 0:
+                raise ValueError(f"Asset {asset2} not found in the FX market")
+            elif len(l_asset2) > 1:
+                raise ValueError(f"Asset {asset2} is ambiguous in the FX market")
+            asset2 = l_asset2[0]
         return self._get_quote(asset1, asset2)
     
-    def add_quote(self, asset1, asset2, rate):
+    def add_quote(self, asset1: asset, asset2: asset, rate: float) -> bool:
         if rate <= 0:
             raise ValueError("Rate must be positive")
         if asset1 == asset2:
@@ -89,7 +100,7 @@ class fx_market:
             return True
         return False
 
-    def set_single_asset(self, asset: asset):
+    def set_single_asset(self, asset: asset) -> None:
         if self.quotes:
             raise ValueError("Cannot set single asset when quotes are not empty")
         self.quotes[(asset, asset)] = 1.0  # Create a self-referential quote

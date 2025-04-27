@@ -112,7 +112,12 @@ class account:
         if unit is None:
             unit = self.unit
         if self.sub_accounts is None:
-            return self.value * fx_mkt.get_quote(self.unit, unit)
+            if self.value is None:
+                raise ValueError("account is not terminal")
+            fx_rate = fx_mkt.get_quote(self.unit, unit)
+            if fx_rate is None:
+                raise ValueError(f"no quote for {self.unit} to {unit}")
+            return self.value * fx_rate
         return sum([
             sa._get_account_value(fx_mkt, unit)
             for sa in self.sub_accounts

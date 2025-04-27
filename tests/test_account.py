@@ -1,7 +1,7 @@
 from __future__ import annotations
 import unittest
-from sortfin.account_path import account_path
-from sortfin.account import account
+from src.sortfin.account_path import account_path
+from src.sortfin.account import account
 
 from .test_asset import EUR, JPY
 from .test_fx_market import FXM

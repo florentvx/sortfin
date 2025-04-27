@@ -27,9 +27,9 @@ classifiers = [
 dependencies = ["PyYAML"]
 
 [project.urls]
-Documentation = "https://github.com/florent vassaux/sortfin#readme"
-Issues = "https://github.com/florent vassaux/sortfin/issues"
-Source = "https://github.com/florent vassaux/sortfin"
+Documentation = "https://github.com/florentvx/sortfin#readme"
+Issues = "https://github.com/florentvx/sortfin/issues"
+Source = "https://github.com/florentvx/sortfin"
 
 [project.scripts]
 sortfin-cli="sortfin.cli.cli_statement:main"
@@ -55,7 +55,10 @@ PYTHONPATH = "src"
 
 [tool.hatch.envs.main.scripts]
 debug = 'python -c "import os; print(os.environ)"'
-test = "pytest {args:tests}"
+test = [
+  "pip install -e .",
+  "pytest {args:tests}",
+]
 build = "pip install -e ."
 sortfin-cli = "sortfin.cli.cli_statement:main"
 
@@ -66,15 +69,15 @@ extra-dependencies = [
 
 [tool.hatch.envs.lint.scripts]
 help = "ruff -h"
-check = "ruff check src tests"  # Run Ruff to check for linting issues
-fix = "ruff check src tests --fix"  # Run Ruff to automatically fix issues
+check = "ruff check src tests scripts"  # Run Ruff to check for linting issues
+fix = "ruff check src tests scripts --fix"  # Run Ruff to automatically fix issues
 
 [tool.hatch.envs.types]
 extra-dependencies = [
   "mypy>=1.0.0",
 ]
 [tool.hatch.envs.types.scripts]
-check = "mypy --install-types --non-interactive {args:src/sortfin tests}"
+check = "mypy --install-types --non-interactive {args:src/sortfin}"
 
 [tool.coverage.run]
 source_pkgs = ["sortfin", "tests"]
@@ -94,3 +97,7 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+[[tool.mypy.overrides]]
+module = ["sortfin.*"]
+follow_untyped_imports = true
