@@ -40,7 +40,9 @@ def main() -> None:
     diff_parser.add_argument('compare_file', type=str, help="Name of the second YAML file (without extension)")
 
     _ = subparser.add_parser('print-structure', help='Print the structure of the statement')
-    _ = subparser.add_parser('print-summary', help='Print the summary of the statement')
+    
+    print_summary_parser = subparser.add_parser('print-summary', help='Print the summary of the statement')
+    print_summary_parser.add_argument('--account_path', type=str, help="Path to the account", default=None)
 
     add_account_parser = subparser.add_parser('add-account', help='Add a new account within a folder account')
     add_account_parser.add_argument('folder_path', type=str, help="Path to the folder account where the new account will be added")
@@ -51,6 +53,15 @@ def main() -> None:
     change_account_value_parser.add_argument('account_path', type=str, help="Path to the terminal account")
     change_account_value_parser.add_argument('account_value', type=float, help="New value of the terminal account")
 
+    add_asset_parser = subparser.add_parser('add-asset', help='Add a new asset to the statement')
+    add_asset_parser.add_argument('asset_name', type=str, help="Name of the new asset")
+    add_asset_parser.add_argument('asset_symbol', type=str, help="Symbol of the new asset")
+    add_asset_parser.add_argument('asset_pair', type=str, help="Name of the existing asset to pair with the new asset")
+    add_asset_parser.add_argument('rate', type=float, help="Rate for the new asset and existing asset pair")
+
+    change_asset_parser = subparser.add_parser('change-account-asset', help='Change asset of account')
+    change_asset_parser.add_argument('account_path', type=str, help="Path to the account")
+    change_asset_parser.add_argument('asset_name', type=str, help="Name of the new asset")  
 
     # parser.add_argument('action', choices=['create', 'diff', 'print_summary', 'print_structure', 'add_account', 'add_asset', 'change_account_asset', 'change_account_value'], help="Action to perform")
     # parser.add_argument('--compare_file', type=str, help="Name of the second YAML file for diff action (without extension)")
@@ -111,7 +122,7 @@ def main() -> None:
         return
     
     elif args.command == 'print-summary':
-        state.print_summary(do_print=True)
+        state.print_summary(account_path(args.account_path), do_print=True)
     
     elif args.command == 'add-account':
         if not args.account_name or not args.folder_path or not args.account_type:
@@ -140,10 +151,7 @@ def main() -> None:
         account_to_modify.value = args.account_value
         modified = True
 
-
-
-
-    elif args.action == 'add_asset':
+    elif args.command == 'add-asset':
         if not args.asset_name or not args.asset_symbol or not args.asset_pair or args.rate is None:
             print("Please provide the asset name, symbol, existing asset, and rate using --asset_name, --asset_symbol, --asset_versus, and --rate")
             return
@@ -159,26 +167,19 @@ def main() -> None:
             inv_rate = True
         else:
             assert asset_pair[0] == args.asset_name, "Asset pair does not match the new asset"
-        asset_versus = next((a for a in state.fx_market.get_asset_database() if a.name == asset_versus_input), None)
-        if not asset_versus:
-            print(f"Existing asset {asset_versus_input} not found in the FX market")
-            return
+        asset_versus = state.fx_market.get_asset_from_input(asset_versus_input)
         if not inv_rate:
             state.fx_market.add_quote(new_asset, asset_versus, args.rate)
         else:
             state.fx_market.add_quote(asset_versus, new_asset, args.rate)
         modified = True
-    elif args.action == 'change_account_asset':
+    
+    elif args.command == 'change-account-asset':
         if not args.account_path or not args.asset_name:
             print("Please provide the account path and new asset name using --account_path and --asset_name")
             return
         account_to_modify = state.get_account(account_path(args.account_path))
-        changed_asset : list[asset] = [a for a in state.fx_market.get_asset_database() if a.name == args.asset_name]
-        if len(changed_asset) == 0:
-            print(f"Asset {args.asset_name} not found in the asset database")
-            return
-        assert len(changed_asset) == 1, f"Multiple assets found with name {args.asset_name}"
-        account_to_modify.unit = changed_asset[0]
+        account_to_modify.unit = state.fx_market.get_asset_from_input(args.asset_name)
         modified = True
 
     if modified:

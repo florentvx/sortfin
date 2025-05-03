@@ -23,6 +23,19 @@ class fx_market:
     
     def get_asset_database(self) -> set[asset]:
         return {k[0] for k in self.quotes} | {k[1] for k in self.quotes}
+    
+    def get_asset_from_input(self, asset_input: asset|str) -> asset:
+        if isinstance(asset_input, asset):
+            return asset_input
+        if not isinstance(asset_input, str):
+            msg = f"Asset input must be of type asset or str, not {type(asset_input)}"
+            raise TypeError(msg)
+        asset_list = [a for a in self.get_asset_database() if a.name == asset_input]
+        if len(asset_list) == 0:
+            raise ValueError(f"Asset {asset_input} not found in the FX market")
+        elif len(asset_list) > 1:
+            raise ValueError(f"Asset {asset_input} is ambiguous in the FX market: {','.join([a.name for a in asset_list])}")
+        return asset_list[0]
 
     def _filter_quote_dict(
             self, 
@@ -77,15 +90,11 @@ class fx_market:
                 return result
         return None  # Return None if no quote is found
             
-    def get_quote(self, asset1: asset, asset2: asset|str) -> float|None:
-        if isinstance(asset2, str):
-            l_asset2 = [a for a in self.get_asset_database() if a.name == asset2]
-            if len(l_asset2) == 0:
-                raise ValueError(f"Asset {asset2} not found in the FX market")
-            elif len(l_asset2) > 1:
-                raise ValueError(f"Asset {asset2} is ambiguous in the FX market")
-            asset2 = l_asset2[0]
-        return self._get_quote(asset1, asset2)
+    def get_quote(self, asset1: asset|str, asset2: asset|str) -> float|None:
+        return self._get_quote(
+            self.get_asset_from_input(asset1),
+            self.get_asset_from_input(asset2),
+        )
     
     def add_quote(self, asset1: asset, asset2: asset, rate: float) -> bool:
         if rate <= 0:
