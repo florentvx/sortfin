@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-from .asset import asset
+from typing import TYPE_CHECKING
 
-class price:
-    def __init__(self, value: float, unit: asset):
+if TYPE_CHECKING:
+    from .asset import Asset
+
+
+class Price:
+    def __init__(self, value: float, unit: Asset) -> None:
         self.value: float = value
-        self.unit: asset = unit
+        self.unit: Asset = unit
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.unit.show_value(self.value)
-    
-    def __repr__(self):
+
+    def __repr__(self) -> str:
         return f"price({self.value} {self.unit.name})"
-    

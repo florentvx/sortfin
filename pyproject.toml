@@ -70,7 +70,7 @@ extra-dependencies = [
 [tool.hatch.envs.lint.scripts]
 help = "ruff -h"
 check = "ruff check src tests scripts"  # Run Ruff to check for linting issues
-fix = "ruff check src tests scripts --fix"  # Run Ruff to automatically fix issues
+fix = "ruff check src tests scripts --fix -v"  # Run Ruff to automatically fix issues
 
 [tool.hatch.envs.types]
 extra-dependencies = [
@@ -101,3 +101,10 @@ exclude_lines = [
 [[tool.mypy.overrides]]
 module = ["sortfin.*"]
 follow_untyped_imports = true
+
+[tool.ruff]
+select = ["ALL"]  # Enable all available rules
+ignore = ["D100", "D101", "D102", "D105", "D107"]       # Optionally, specify rules to ignore
+exclude = ["build", "dist"]  # Exclude specific directories
+line-length = 88  # Set the maximum line length (e.g., Black's default is 88)
+fixable = ["ALL"]  # Allow Ruff to fix all fixable issues
