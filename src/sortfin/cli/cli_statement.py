@@ -1,14 +1,16 @@
+from __future__ import annotations
+
 import argparse
 import logging
 from pathlib import Path
 
 import yaml
 
-from src.sortfin.account import Account
-from src.sortfin.account_path import AccountPath
-from src.sortfin.asset import Asset
-from src.sortfin.statement import Statement, initialize_statement
-from src.sortfin.to_yaml import from_list_to_statement, from_statement_to_list
+from ..account import Account
+from ..account_path import AccountPath
+from ..asset import Asset
+from ..statement import Statement, initialize_statement
+from ..to_yaml import from_list_to_statement, from_statement_to_list
 
 
 def load_statement_from_yaml(file_path: Path) -> Statement:
@@ -23,8 +25,12 @@ def save_statement_to_yaml(state: Statement, file_path: Path) -> None:
     with Path.open(file_path, "w") as file:
         yaml.safe_dump(state_dict, file)
 
-def main(logger: logging.Logger) -> None: #noqa: C901, PLR0911, PLR0912, PLR0915
+def main(logger: logging.Logger|None = None) -> None: #noqa: C901, PLR0911, PLR0912, PLR0915
     """Handle command line arguments and execute."""
+    if logger is None:
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        logger = logging.getLogger(__name__)
+
     session_name="<UNSET>"
     session_path = Path.cwd() / ".sortfin" / ".session"
     with session_path.open() as session_file:
@@ -148,11 +154,11 @@ def main(logger: logging.Logger) -> None: #noqa: C901, PLR0911, PLR0912, PLR0915
         return
 
     if args.command == "print-structure":
-        state.print_structure()
+        logger.info(state.print_structure())
         return
 
     if args.command == "print-summary":
-        state.print_summary(AccountPath(args.account_path))
+        logger.info(state.print_summary(AccountPath(args.account_path)))
         return
 
     if args.command == "add-account":

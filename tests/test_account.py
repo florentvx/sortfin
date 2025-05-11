@@ -87,10 +87,10 @@ class TestAccount(unittest.TestCase):
 
     def test_get_account_structure(self) -> None:
         expected_structure = (
-            " 0. acc2 : EUR\n   1. acc2/sa0 -> € 102\n   1. acc2/sa1 : EUR\n"
-            "     2. acc2/sa1/sa00 -> € 52\n     2. acc2/sa1/sa01 -> € 12\n"
+            " 0. acc2 : EUR\n   1. acc2/sa0 : EUR -> € 102\n   1. acc2/sa1 : EUR\n"
+            "     2. acc2/sa1/sa00 : EUR -> € 52\n     2. acc2/sa1/sa01 : EUR -> € 12\n"
             "   1. acc2/sa3 : JPY\n"
-            "     2. acc2/sa3/x -> ¥ 10,0000\n     2. acc2/sa3/y : JPY"
+            "     2. acc2/sa3/x : JPY -> ¥ 10,0000\n     2. acc2/sa3/y : JPY"
         )
         assert ACC_2.print_structure() == expected_structure #noqa: S101
 

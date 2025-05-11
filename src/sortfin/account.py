@@ -106,13 +106,14 @@ class Account:
         ) -> Iterator[str]:
         acc_p, rest_struct = structure
         acc = self.get_account(acc_p.get_child())
+        prefix = f"{'  ' * level} {level}. {acc_p} : {acc.unit.name}"
         if rest_struct is None:
             if acc.value is None:
                 msg="account is not terminal"
                 raise ValueError(msg)
-            yield f"{'  ' * level} {level}. {acc_p} -> {acc.unit.show_value(acc.value)}"
+            yield prefix + f" -> {acc.unit.show_value(acc.value)}"
         else:
-            yield f"{'  ' * level} {level}. {acc_p} : {acc.unit.name}"
+            yield prefix
             for child in rest_struct:
                 yield from self._print_structure(child, level + 1)
 

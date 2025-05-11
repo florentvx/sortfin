@@ -5,6 +5,12 @@
 if [ -f "$(dirname "$0")/src/sortfin/sortfin_prompt.sh" ]; then
     source "$(dirname "$0")/src/sortfin/sortfin_prompt.sh"
 fi
+echo "Starting SortFin CLI..."
+MY_DIR=$(dirname "$(readlink -f "$0")")
+cd "$MY_DIR" || exit 1
+
+echo "Found sortfin @: $(pwd)"
+
 
 # Locate the Hatch environment directory
 HATCH_ENV_DIR=$(hatch env find main)
