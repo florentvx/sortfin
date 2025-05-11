@@ -9,7 +9,7 @@ from .price import Price
 from .statement import Statement
 
 
-def _from_assetdb_to_list(asset_db: set[Asset]) -> list[list[str]]:
+def _from_assetdb_to_list(asset_db: set[Asset]) -> list:
     return [
         [
             a.name, a.symbol,
@@ -19,7 +19,7 @@ def _from_assetdb_to_list(asset_db: set[Asset]) -> list[list[str]]:
         for a in asset_db
     ]
 
-def _from_list_to_assetdb(adb_list: list[list[str]]) -> set[Asset]:
+def _from_list_to_assetdb(adb_list: list) -> set[Asset]:
     return {
         Asset(a[0], a[1], a[2], a[3], a[4], a[5])
         for a in adb_list

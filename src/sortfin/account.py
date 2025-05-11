@@ -63,6 +63,9 @@ class Account:
         if self.sub_accounts is None:
             msg = f"account {self.name} is terminal and cannot have sub_accounts"
             raise ValueError(msg)
+        if path.root_folder is None:
+            msg="path.root_folder is None"
+            raise ValueError(msg)
         sa_match_list = [
             sa
             for sa in self.sub_accounts
@@ -104,6 +107,9 @@ class Account:
         acc_p, rest_struct = structure
         acc = self.get_account(acc_p.get_child())
         if rest_struct is None:
+            if acc.value is None:
+                msg="account is not terminal"
+                raise ValueError(msg)
             yield f"{'  ' * level} {level}. {acc_p} -> {acc.unit.show_value(acc.value)}"
         else:
             yield f"{'  ' * level} {level}. {acc_p} : {acc.unit.name}"
@@ -253,8 +259,8 @@ class Account:
         if self.is_terminal != other.is_terminal:
             test_res = True
             res += (
-                f"  Type: {'Terminal' if self.is_terminal else 'Folder'} -> ",
-                f"{'Terminal' if other.is_terminal else 'Folder'}\n",
+                f"  Type: {'Terminal' if self.is_terminal else 'Folder'} -> "
+                f"{'Terminal' if other.is_terminal else 'Folder'}\n"
             )
 
         # Compare units

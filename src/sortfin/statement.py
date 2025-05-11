@@ -4,11 +4,12 @@ import datetime as dt
 from typing import TYPE_CHECKING
 
 from .account import Account
-from .asset import Asset
 from .fx_market import FxMarket
 
 if TYPE_CHECKING:
+
     from .account_path import AccountPath
+    from .asset import Asset
 
 
 def initialize_statement(unit: Asset) -> Statement:
@@ -81,14 +82,9 @@ class Statement:
             path: AccountPath|None = None,
             unit: Asset|None = None,
         ) -> str:
-        if unit is not None and isinstance(unit, Asset):
-            unit = unit.name
-        if unit is not None and not isinstance(unit, str):
-            msg="unit must be an asset or a string"
-            raise ValueError(msg)
         return (
             f"Statement: {self.date.date().isoformat()}\n"
-            f"{self.account.print_account_summary(self.fx_market, path, unit)}",
+            f"{self.account.print_account_summary(self.fx_market, path, unit)}"
         )
 
     def diff(self, other: Statement) -> str:
