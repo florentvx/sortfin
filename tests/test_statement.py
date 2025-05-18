@@ -6,20 +6,21 @@ import pytest
 from src.sortfin import Account, AccountPath, Asset, Statement
 
 from .test_asset import EUR, GBP, JPY, USD
+from .test_assetdb import ASSET_DB
 from .test_fx_market import FXM
 
-ACC_TEST = Account("root", unit=EUR,
+ACC_TEST = Account("root", unit=EUR.name,
     sub_accounts=[
-        Account("europe", unit=EUR,
+        Account("europe", unit=EUR.name,
             sub_accounts=[
-                Account("my_bank", unit=EUR, value=1000),
-                Account("my_loan", unit=EUR, value=-100),
+                Account("my_bank", unit=EUR.name, value=1000),
+                Account("my_loan", unit=EUR.name, value=-100),
             ],
         ),
-        Account("usa", unit=USD,
+        Account("usa", unit=USD.name,
             sub_accounts=[
-                Account("my_bank", unit=USD, value=250),
-                Account("my_investment", unit=USD, value=145600.2),
+                Account("my_bank", unit=USD.name, value=250),
+                Account("my_investment", unit=USD.name, value=145600.2),
             ],
         ),
     ],
@@ -31,7 +32,7 @@ class TestStatement(unittest.TestCase):
 
     def setUp(self) -> None:
         self.my_state = Statement(
-            dt.datetime(2025, 1, 5, tzinfo=self.TZ), FXM, ACC_TEST,
+            dt.datetime(2025, 1, 5, tzinfo=self.TZ), ASSET_DB, FXM, ACC_TEST,
         )
         self.my_state2=self.my_state.copy_statement(
             dt.datetime(2025, 2, 5, tzinfo=self.TZ),
@@ -69,11 +70,11 @@ class TestStatement(unittest.TestCase):
         ).value == new_jpy_value
         assert self.my_state3.get_account( # noqa: S101
             AccountPath("usa/my_investment"),
-        ).unit == JPY
+        ).unit == JPY.name
 
     def test_change_folder_account(self) -> None:
         self.my_state4.change_folder_account(AccountPath("europe"), unit=GBP)
-        assert self.my_state4.get_account(AccountPath("europe")).unit == GBP # noqa: S101
+        assert self.my_state4.get_account(AccountPath("europe")).unit == GBP.name # noqa: S101
 
     def test_invalid_change_terminal_account(self) -> None:
         with pytest.raises(
@@ -89,12 +90,15 @@ class TestStatement(unittest.TestCase):
         )
         ps2 = self.my_state2.print_summary()
         self.my_state3.change_terminal_account(
-            AccountPath("usa/my_investment"), value=123456, unit=JPY,
+            AccountPath("usa/my_investment"), value=123456, unit=JPY.name,
         )
         ps3 = self.my_state3.print_summary()
         asset_btc = Asset("BTC", "B", decimal_param=6)
+        self.my_state4.asset_db.add_asset(asset_btc)
         self.my_state4.change_folder_account(AccountPath("europe"), unit=asset_btc)
-        self.my_state4.fx_market.add_quote(asset_btc, JPY, 140000)
+        self.my_state4.fx_market.add_quote(
+            self.my_state4.asset_db, asset_btc.name, JPY.name, 140000,
+        )
         ps4 = self.my_state4.print_summary()
 
         assert ps1 is not None # noqa: S101

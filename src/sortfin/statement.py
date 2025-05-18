@@ -4,10 +4,10 @@ import datetime as dt
 from typing import TYPE_CHECKING
 
 from .account import Account
+from .asset_database import AssetDatabase
 from .fx_market import FxMarket
 
 if TYPE_CHECKING:
-
     from .account_path import AccountPath
     from .asset import Asset
 
@@ -15,27 +15,36 @@ if TYPE_CHECKING:
 def initialize_statement(unit: Asset) -> Statement:
     """Initialize a statement with a given unit and the current date."""
     fx_mkt = FxMarket()
-    fx_mkt.set_single_asset(unit)
+    asset_db = AssetDatabase()
+    asset_db.add_asset(unit)
     return Statement(
         dt.datetime.now(tz=dt.timezone.utc),
+        asset_db,
         fx_mkt,
-        Account(name="root", unit=unit, sub_accounts=[]),
+        Account(name="root", unit=unit.name, sub_accounts=[]),
     )
 
 class Statement:
     def __init__(
             self,
             date: dt.datetime,
+            asset_db: AssetDatabase,
             fx_mkt: FxMarket,
             acc: Account,
         ) -> None:
         self.date : dt.datetime = date
+        self.asset_db : AssetDatabase = asset_db
         self.fx_market : FxMarket = fx_mkt
         self.account : Account = acc
-        self.print_summary() # forces the computation of all fx quotes needed # noqa: E501
+        self.print_summary() # forces the computation of all fx quotes needed
 
     def copy_statement(self, date: dt.datetime) -> Statement:
-        return Statement(date, self.fx_market.copy(), self.account.copy())
+        return Statement(
+            date,
+            self.asset_db.copy(),
+            self.fx_market.copy(),
+            self.account.copy(),
+        )
 
     def get_account(self, ap: AccountPath) -> Account:
         return self.account.get_account(ap)
@@ -44,23 +53,39 @@ class Statement:
             self,
             ap: AccountPath,
             value: float|None = None,
-            unit: Asset|None = None,
+            unit: str|None = None,
         ) -> None:
+        if unit is None:
+            unit = self.account.unit
+        test, asset_unit = self.asset_db.find_asset_from_input(unit)
+        if not test:
+            msg = f"Asset {unit} not found in the asset database"
+            raise ValueError(msg)
+        if asset_unit is None:
+            msg = f"Asset {unit} not found in the asset database"
+            raise ValueError(msg)
         acc = self.get_account(ap)
         if acc.is_terminal:
             if value is not None:
                 acc.value=value
             if unit is not None:
-                acc.unit=unit
+                acc.unit=asset_unit.name
         else:
             msg=f"account: [{acc}] is not terminal"
             raise ValueError(msg)
 
-    def change_folder_account(self, ap:AccountPath, unit: Asset) -> None:
+    def change_folder_account(self, ap:AccountPath, unit: str) -> None:
+        test, asset_unit = self.asset_db.find_asset_from_input(unit)
+        if not test:
+            msg = f"Asset {unit} not found in the asset database"
+            raise ValueError(msg)
+        if asset_unit is None:
+            msg = f"Asset {unit} not found in the asset database"
+            raise ValueError(msg)
         acc = self.get_account(ap)
         if not acc.is_terminal:
             if unit is not None:
-                acc.unit=unit
+                acc.unit=asset_unit.name
         else:
             msg=f"account: [{acc}] is terminal"
             raise ValueError(msg)
@@ -75,16 +100,22 @@ class Statement:
         folder_account.sub_accounts.append(new_account)
 
     def print_structure(self) -> str:
-        return self.account.print_structure() + "\n" + str(self.fx_market)
+        return (
+            f"{self.account.print_structure(self.asset_db)}\n"
+            f"{self.asset_db}\n"
+            f"{self.fx_market}"
+        )
 
     def print_summary(
             self,
             path: AccountPath|None = None,
-            unit: Asset|None = None,
+            unit: str|None = None,
         ) -> str:
         return (
             f"Statement: {self.date.date().isoformat()}\n"
-            f"{self.account.print_account_summary(self.fx_market, path, unit)}"
+            f"{self.account.print_account_summary(
+                self.asset_db, self.fx_market, path, unit
+            )}"
         )
 
     def diff(self, other: Statement) -> str:
@@ -107,19 +138,19 @@ class Statement:
             if k in other.fx_market.quotes:
                 if v != other.fx_market.quotes[k]:
                     res_fx += (
-                        f"{k[0].name}/{k[1].name}: {v} "
+                        f"{k[0]}/{k[1]}: {v} "
                         f"-> {other.fx_market.quotes[k]}\n"
                     )
             else:
                 res_fx += (
-                    f"{k[0].name}/{k[1].name}: {v} "
+                    f"{k[0]}/{k[1]}: {v} "
                     "-> Not present in other statement\n"
                 )
 
         for (k, v) in other.fx_market.quotes.items():
             if k not in self.fx_market.quotes:
                 res_fx += (
-                    f"{k[0].name}/{k[1].name}: "
+                    f"{k[0]}/{k[1]}: "
                     f"Not present in this statement -> {round(v,6)}\n"
                 )
         if len(res_fx) > 0:

@@ -229,11 +229,15 @@ def main(logger: logging.Logger|None = None) -> None: #noqa: C901, PLR0911, PLR0
         elif asset_pair[0] != args.asset_name:
             msg="Asset pair does not match the new asset"
             raise ValueError(msg)
-        asset_versus = state.fx_market.get_asset_from_input(asset_versus_input)
+        asset_versus = state.asset_db.get_asset_from_name(asset_versus_input)
+        if asset_versus is None:
+            msg=f"Asset {asset_versus_input} not found in the asset database"
+            raise ValueError(msg)
+        state.asset_db.add_asset(new_asset)
         if not inv_rate:
-            state.fx_market.add_quote(new_asset, asset_versus, args.rate)
+            state.fx_market.add_quote(state.asset_db, new_asset.name, asset_versus.name, args.rate)
         else:
-            state.fx_market.add_quote(asset_versus, new_asset, args.rate)
+            state.fx_market.add_quote(state.asset_db, asset_versus.name, new_asset.name, args.rate)
         modified = True
 
     elif args.command == "change-account-asset":
@@ -244,7 +248,10 @@ def main(logger: logging.Logger|None = None) -> None: #noqa: C901, PLR0911, PLR0
             )
             return
         account_to_modify = state.get_account(AccountPath(args.account_path))
-        account_to_modify.unit = state.fx_market.get_asset_from_input(args.asset_name)
+        if state.asset_db.get_asset_from_name(args.asset_name) is None:
+            msg=f"asset not found: {args.asset_name}"
+            raise ValueError(msg)
+        account_to_modify.unit =args.asset_name
         modified = True
 
     if modified:

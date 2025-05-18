@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Iterator
 
 from .account_path import AccountPath
-from .asset import Asset
 from .price import Price
 
 if TYPE_CHECKING:
+    from .asset_database import AssetDatabase
     from .fx_market import FxMarket
 
 
@@ -14,7 +14,7 @@ class Account:
     def __init__(
             self,
             name: str,
-            unit: Asset,
+            unit: str,
             *,
             value: float | None = None,
             sub_accounts: list[Account] | None = None,
@@ -29,12 +29,12 @@ class Account:
         if not isinstance(name, str) or name == "":
             msg=f"account name is not set properly [{name}]"
             raise ValueError(msg)
-        if not isinstance(unit, Asset):
-            msg=f"unit of account is not an asset: {unit}"
+        if not isinstance(unit, str):
+            msg=f"unit of account is not a string: {unit}"
             raise TypeError(msg)
 
         self.name: str = name
-        self.unit : Asset = unit
+        self.unit : str = unit
         self.value: float | None = value
         self.sub_accounts : list[Account] | None = sub_accounts
 
@@ -45,9 +45,13 @@ class Account:
     def is_terminal(self) -> bool:
         return self.value is not None
 
-    def get_price(self) -> Price:
+    def get_price(self, asset_database: AssetDatabase) -> Price:
+        asset_unit = asset_database.get_asset_from_name(self.unit)
+        if asset_unit is None:
+            msg=f"asset {self.unit} not found in asset database"
+            raise ValueError(msg)
         if self.value is not None:
-            return Price(self.value, self.unit)
+            return Price(self.value, asset_unit)
         msg="Account is not terminal and does not have a price"
         raise ValueError(msg)
 
@@ -101,120 +105,155 @@ class Account:
 
     def _print_structure(
             self,
+            asset_db: AssetDatabase,
             structure: tuple[AccountPath, Any],
             level: int,
         ) -> Iterator[str]:
         acc_p, rest_struct = structure
         acc = self.get_account(acc_p.get_child())
-        prefix = f"{'  ' * level} {level}. {acc_p} : {acc.unit.name}"
+        prefix = f"{'  ' * level} {level}. {acc_p} : {acc.unit}"
         if rest_struct is None:
             if acc.value is None:
                 msg="account is not terminal"
                 raise ValueError(msg)
-            yield prefix + f" -> {acc.unit.show_value(acc.value)}"
+            unit = asset_db.get_asset_from_name(acc.unit)
+            if unit is None:
+                msg=f"asset {acc.unit} not found in asset database"
+                raise ValueError(msg)
+            yield prefix + f" -> {unit.show_value(acc.value)}"
         else:
             yield prefix
             for child in rest_struct:
-                yield from self._print_structure(child, level + 1)
+                yield from self._print_structure(asset_db, child, level + 1)
 
-    def print_structure(self) -> str:
+    def print_structure(self, asset_db: AssetDatabase) -> str:
         return (
-            "\n".join(
+            "Account Structure:\n" + "\n".join(
                 self._print_structure(
+                    asset_db,
                     structure = self.get_account_structure(),
                     level=0,
                 ),
-            )
+            ) + "\n"
         )
 
     def _get_account_value(
             self,
+            asset_db: AssetDatabase,
             fx_mkt: FxMarket,
-            unit: Asset|str|None = None,
+            unit: str,
         ) -> float:
-        if unit is None:
-            unit = self.unit
         if self.sub_accounts is None:
             if self.value is None:
                 msg="account is not terminal"
                 raise ValueError(msg)
-            fx_rate = fx_mkt.get_quote(self.unit, unit)
+            fx_rate = fx_mkt.get_quote(asset_db, self.unit, unit)
             if fx_rate is None:
                 msg=f"no quote for {self.unit} to {unit}"
                 raise ValueError(msg)
             return self.value * fx_rate
         return sum([
-            sa._get_account_value(fx_mkt, unit) #noqa: SLF001
+            sa._get_account_value(asset_db, fx_mkt, unit) #noqa: SLF001
             for sa in self.sub_accounts
         ])
 
     def _get_account_price(
             self,
+            asset_db: AssetDatabase,
             fx_mkt: FxMarket,
-            unit: Asset|None = None,
+            unit: str,
         ) -> Price:
+        asset_unit = asset_db.get_asset_from_name(unit)
+        if asset_unit is None:
+            msg=f"asset {unit} not found in asset database"
+            raise ValueError(msg)
         return Price(
-            self._get_account_value(fx_mkt, unit),
-            unit if unit is not None else self.unit,
+            self._get_account_value(asset_db, fx_mkt, unit),
+            asset_unit,
         )
 
     def _get_account_summary(
             self,
+            asset_db: AssetDatabase,
             fx_mkt: FxMarket,
-            unit: Asset|None = None,
+            unit: str,
         ) -> list[tuple[str, Price, Price]]:
-        if unit is None:
-            unit = self.unit
         if self.sub_accounts is None:
             msg="account is not terminal"
             raise ValueError(msg)
         return [
             (
                 sa.name,
-                sa._get_account_price(fx_mkt, sa.unit), #noqa: SLF001
-                sa._get_account_price(fx_mkt, unit), #noqa: SLF001
+                sa._get_account_price(asset_db, fx_mkt, sa.unit), #noqa: SLF001
+                sa._get_account_price(asset_db, fx_mkt, unit), #noqa: SLF001
             )
             for sa in self.sub_accounts
         ]
 
     def get_account_price(
             self,
+            asset_db: AssetDatabase,
             fx_mkt: FxMarket,
             path: AccountPath|None = None,
-            unit: Asset|None = None,
+            unit: str|None = None,
         ) -> Price:
-        return self.get_account(path)._get_account_price(fx_mkt, unit) #noqa: SLF001
+        if unit is None:
+            unit = self.unit
+        return self.get_account(path)._get_account_price(asset_db, fx_mkt, unit) #noqa: SLF001
 
     def get_account_summary(
             self,
+            asset_db: AssetDatabase,
             fx_mkt: FxMarket,
             path: AccountPath|None = None,
-            unit: Asset|None = None,
+            unit: str|None = None,
         ) -> list[tuple[str, Price, Price]]:
-        return self.get_account(path)._get_account_summary(fx_mkt, unit) #noqa: SLF001
+        return self.get_account(path)._get_account_summary( #noqa: SLF001
+            asset_db,
+            fx_mkt,
+            unit if unit is not None else self.unit,
+        )
 
     def print_account_summary(
-            self, fx_mkt: FxMarket,
+            self,
+            asset_db: AssetDatabase,
+            fx_mkt: FxMarket,
             path: AccountPath|None = None,
-            unit: Asset|None = None,
+            unit: str|None = None,
         ) -> str:
         res = ""
-        for name, price1, price2 in self.get_account_summary(fx_mkt, path, unit):
+        for name, price1, price2 in self.get_account_summary(
+            asset_db,
+            fx_mkt,
+            path,
+            unit,
+            ):
             value1 = str(price1)
             len_name = len(name)
             space1 = 10 - len_name
             len_val1 = len(value1)
             space2 = 15 - len_val1
             res += f'\n{name}:{" " * space1}{value1}{" " * space2}{price2}'
-        return f"Account Summary: {self.name} {self.unit.name}" + res
+        asset_unit = asset_db.get_asset_from_name(self.unit)
+        if asset_unit is None:
+            msg=f"asset {self.unit} not found in asset database"
+            raise ValueError(msg)
+        return (
+            f"Account Summary: "
+            f"{self.name} {asset_unit.name}" + res
+        )
 
     def add_account(
             self,
+            asset_db: AssetDatabase,
             path: AccountPath,
             *,
             is_terminal: bool,
-            unit: Asset|None = None,
+            unit: str|None = None,
         ) -> None:
+        if unit is not None and asset_db.get_asset_from_name(unit) is None:
+            msg=f"asset {unit} not found in asset database"
+            raise ValueError(msg)
         sub_acc = self.get_account(path.parent)
         if sub_acc.sub_accounts is None:
             msg="cannot add account to a terminal account"
@@ -235,9 +274,12 @@ class Account:
 
     def copy(self) -> Account:
         if self.sub_accounts is None:
-            return Account(self.name + "", unit= self.unit.copy(), value=self.value)
+            return Account(
+                self.name + "", unit= self.unit,
+                value=self.value,
+            )
         return Account(
-            self.name + "", self.unit.copy(),
+            self.name + "", self.unit,
             sub_accounts=[acc.copy() for acc in self.sub_accounts],
         )
 
@@ -267,7 +309,7 @@ class Account:
         # Compare units
         if self.unit != other.unit:
             test_res = True
-            res += f"Unit: {self.unit.name} -> {other.unit.name}\n"
+            res += f"Unit: {self.unit} -> {other.unit}\n"
 
         if self.is_terminal and other.is_terminal and self.value != other.value:
             test_res = True
