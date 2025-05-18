@@ -105,6 +105,6 @@ follow_untyped_imports = true
 [tool.ruff]
 select = ["ALL"]  # Enable all available rules
 ignore = ["D100", "D101", "D102", "D105", "D107"]       # Optionally, specify rules to ignore
-exclude = ["build", "dist"]  # Exclude specific directories
+exclude = ["build", "dist", "src/sortfin/cli"]  # Exclude specific directories
 line-length = 88  # Set the maximum line length (e.g., Black's default is 88)
 fixable = ["ALL"]  # Allow Ruff to fix all fixable issues
