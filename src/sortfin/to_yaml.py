@@ -7,6 +7,7 @@ from .asset import Asset
 from .asset_database import AssetDatabase
 from .fx_market import FxMarket
 from .price import Price
+from .session import Session
 from .statement import Statement
 
 
@@ -89,21 +90,35 @@ def _from_list_to_fxmkt(fx_list: fxmkt_list, asset_db: AssetDatabase) -> FxMarke
         )
     return res
 
-def from_statement_to_list(state: Statement) -> list:
+def from_statement_to_list(state: Statement, asset_db: AssetDatabase) -> list:
     """Convert a statement object to a list of values for YAML serialization."""
     return [
         state.date.isoformat(),
-        _from_assetdb_to_list(state.asset_db),
         _from_fxmkt_to_list(state.fx_market),
-        _from_account_to_list(state.asset_db, state.account),
+        _from_account_to_list(asset_db, state.account),
     ]
 
-def from_list_to_statement(serialized_list: list) -> Statement:
+def from_list_to_statement(serialized_list: list, asset_db: AssetDatabase) -> Statement:
     """Convert a list of values to a statement object."""
-    asset_db = _from_list_to_assetdb(serialized_list[1])
     return Statement(
         dt.datetime.fromisoformat(serialized_list[0]),
-        asset_db,
-        _from_list_to_fxmkt(serialized_list[2], asset_db),
-        _from_list_to_account(serialized_list[3], asset_db),
+        _from_list_to_fxmkt(serialized_list[1], asset_db),
+        _from_list_to_account(serialized_list[2], asset_db),
     )
+
+def from_session_to_list(session: Session) -> list:
+    """Convert a session object to a list of values for YAML serialization."""
+    return [
+        _from_assetdb_to_list(session.asset_db),
+        {date.isoformat(): from_statement_to_list(statement, session.asset_db)
+         for date, statement in session.data.items()},
+    ]
+
+def from_list_to_session(serialized_list: list) -> Session:
+    """Convert a list of values to a session object."""
+    asset_db = _from_list_to_assetdb(serialized_list[0])
+    session = Session(asset_db)
+    for date_str, statement_list in serialized_list[1].items():
+        date = dt.datetime.fromisoformat(date_str)
+        session.data[date] = from_list_to_statement(statement_list, asset_db)
+    return session

@@ -12,36 +12,25 @@ if TYPE_CHECKING:
     from .asset import Asset
 
 
-def initialize_statement(unit: Asset) -> Statement:
-    """Initialize a statement with a given unit and the current date."""
-    fx_mkt = FxMarket()
-    asset_db = AssetDatabase()
-    asset_db.add_asset(unit)
-    return Statement(
-        dt.datetime.now(tz=dt.timezone.utc),
-        asset_db,
-        fx_mkt,
-        Account(name="root", unit=unit.name, sub_accounts=[]),
-    )
-
 class Statement:
     def __init__(
             self,
             date: dt.datetime,
-            asset_db: AssetDatabase,
             fx_mkt: FxMarket,
             acc: Account,
+            asset_db: AssetDatabase|None = None,
         ) -> None:
         self.date : dt.datetime = date
-        self.asset_db : AssetDatabase = asset_db
         self.fx_market : FxMarket = fx_mkt
         self.account : Account = acc
-        self.print_summary() # forces the computation of all fx quotes needed
+        if asset_db is not None:
+            # forces the computation of all fx quotes needed
+            # check if this is needed
+            self.print_summary(asset_db)
 
-    def copy_statement(self, date: dt.datetime) -> Statement:
+    def copy(self, date: dt.datetime) -> Statement:
         return Statement(
             date,
-            self.asset_db.copy(),
             self.fx_market.copy(),
             self.account.copy(),
         )
@@ -55,66 +44,71 @@ class Statement:
             value: float|None = None,
             unit: str|None = None,
         ) -> None:
-        if unit is None:
-            unit = self.account.unit
-        test, asset_unit = self.asset_db.find_asset_from_input(unit)
-        if not test:
-            msg = f"Asset {unit} not found in the asset database"
-            raise ValueError(msg)
-        if asset_unit is None:
-            msg = f"Asset {unit} not found in the asset database"
-            raise ValueError(msg)
-        acc = self.get_account(ap)
-        if acc.is_terminal:
-            if value is not None:
-                acc.value=value
-            if unit is not None:
-                acc.unit=asset_unit.name
-        else:
-            msg=f"account: [{acc}] is not terminal"
-            raise ValueError(msg)
-
-    def change_folder_account(self, ap:AccountPath, unit: str) -> None:
-        test, asset_unit = self.asset_db.find_asset_from_input(unit)
-        if not test:
-            msg = f"Asset {unit} not found in the asset database"
-            raise ValueError(msg)
-        if asset_unit is None:
-            msg = f"Asset {unit} not found in the asset database"
+        if value is None and unit is None:
+            msg = "Either value or unit must be provided"
             raise ValueError(msg)
         acc = self.get_account(ap)
         if not acc.is_terminal:
+            msg=f"account: [{acc}] is not terminal"
+            raise ValueError(msg)
+        if value is not None:
+            acc.value=value
             if unit is not None:
-                acc.unit=asset_unit.name
+                acc.unit=unit
         else:
+            acc.unit=unit
+
+    def change_folder_account(self, ap:AccountPath, unit: str) -> None:
+        acc = self.get_account(ap)
+        if acc.value is not None:
             msg=f"account: [{acc}] is terminal"
             raise ValueError(msg)
+        acc.unit=unit
 
-    def add_account(self, folder_path: AccountPath, new_account: Account|str) -> None:
+    def add_account(
+            self,
+            folder_path: AccountPath,
+            new_account: Account|str,
+            *,
+            unit: str|None = None,
+            value: float|None = None,
+        ) -> None:
+        if isinstance(new_account, Account):
+            if unit is not None:
+                msg="Cannot set unit on an existing account"
+                raise ValueError(msg)
+            if value is not None:
+                msg="Cannot set value on an existing account"
+                raise ValueError(msg)
         folder_account = self.get_account(folder_path)
         if folder_account.sub_accounts is None:
             msg=f"Cannot add an account to a terminal account: {folder_account}"
             raise ValueError(msg)
         if isinstance(new_account, str):
-            new_account = Account(new_account, unit=folder_account.unit)
+            new_account = Account(
+                new_account,
+                unit=folder_account.unit if unit is None else unit,
+                value=value,
+                sub_accounts=[] if value is None else None,
+            )
         folder_account.sub_accounts.append(new_account)
 
-    def print_structure(self) -> str:
+    def print_structure(self, asset_db: AssetDatabase) -> str:
         return (
-            f"{self.account.print_structure(self.asset_db)}\n"
-            f"{self.asset_db}\n"
+            f"{self.account.print_structure(asset_db)}\n"
             f"{self.fx_market}"
         )
 
     def print_summary(
             self,
+            asset_db: AssetDatabase,
             path: AccountPath|None = None,
             unit: str|None = None,
         ) -> str:
         return (
             f"Statement: {self.date.date().isoformat()}\n"
-            f"{self.account.print_account_summary(
-                self.asset_db, self.fx_market, path, unit
+            f"{self.get_account(path).print_account_summary(
+                asset_db, self.fx_market, unit=unit
             )}"
         )
 
@@ -157,3 +151,16 @@ class Statement:
             res += "FX Market Differences:\n"
             res += res_fx
         return res
+
+
+def initialize_statement(unit: Asset) -> Statement:
+    """Initialize a statement with a given unit and the current date."""
+    fx_mkt = FxMarket()
+    asset_db = AssetDatabase()
+    asset_db.add_asset(unit)
+    return Statement(
+        dt.datetime.now(tz=dt.timezone.utc),
+        asset_db,
+        fx_mkt,
+        Account(name="root", unit=unit.name, sub_accounts=[]),
+    )
