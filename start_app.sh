@@ -22,4 +22,4 @@ SORTFIN_CLI_DIR="$HATCH_ENV_DIR/Scripts"
 export PATH="$SORTFIN_CLI_DIR:$PATH"
 
 # Start a new Bash session
-exec bash --rcfile <(echo "export PYTHONPATH=$PYTHONPATH; source ./src/sortfin/sortfin_prompt.sh; cd /c/WorkArea/temp/sortfin;echo Hello World!")
+exec bash --rcfile <(echo "export PYTHONPATH=$PYTHONPATH; source ./src/sortfin/sortfin_prompt.sh; cd /c/workspace/sortfin/sessions;echo Hello World!")
