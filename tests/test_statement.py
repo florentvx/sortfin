@@ -32,15 +32,15 @@ class TestStatement(unittest.TestCase):
 
     def setUp(self) -> None:
         self.my_state = Statement(
-            dt.datetime(2025, 1, 5, tzinfo=self.TZ), ASSET_DB, FXM, ACC_TEST,
+            dt.datetime(2025, 1, 5, tzinfo=self.TZ), FXM, ACC_TEST,
         )
-        self.my_state2=self.my_state.copy_statement(
+        self.my_state2=self.my_state.copy(
             dt.datetime(2025, 2, 5, tzinfo=self.TZ),
         )
-        self.my_state3=self.my_state.copy_statement(
+        self.my_state3=self.my_state.copy(
             dt.datetime(2025, 3, 5, tzinfo=self.TZ),
         )
-        self.my_state4=self.my_state.copy_statement(
+        self.my_state4=self.my_state.copy(
             dt.datetime(2025, 4, 5, tzinfo=self.TZ),
         )
 
@@ -63,7 +63,7 @@ class TestStatement(unittest.TestCase):
         self.my_state3.change_terminal_account(
             AccountPath("usa/my_investment"),
             value=new_jpy_value,
-            unit=JPY,
+            unit=JPY.name,
         )
         assert self.my_state3.get_account( # noqa: S101
             AccountPath("usa/my_investment"),
@@ -73,7 +73,7 @@ class TestStatement(unittest.TestCase):
         ).unit == JPY.name
 
     def test_change_folder_account(self) -> None:
-        self.my_state4.change_folder_account(AccountPath("europe"), unit=GBP)
+        self.my_state4.change_folder_account(AccountPath("europe"), unit=GBP.name)
         assert self.my_state4.get_account(AccountPath("europe")).unit == GBP.name # noqa: S101
 
     def test_invalid_change_terminal_account(self) -> None:
@@ -84,22 +84,23 @@ class TestStatement(unittest.TestCase):
             self.my_state3.change_terminal_account(AccountPath("usa"), unit=EUR)
 
     def test_print_summary(self) -> None:
-        ps1 = self.my_state.print_structure()
+        current_adb = ASSET_DB.copy()
+        ps1 = self.my_state.print_structure(current_adb)
         self.my_state2.change_terminal_account(
             AccountPath("europe/my_bank"), value=100,
         )
-        ps2 = self.my_state2.print_summary()
+        ps2 = self.my_state2.print_summary(current_adb)
         self.my_state3.change_terminal_account(
             AccountPath("usa/my_investment"), value=123456, unit=JPY.name,
         )
-        ps3 = self.my_state3.print_summary()
+        ps3 = self.my_state3.print_summary(current_adb)
         asset_btc = Asset("BTC", "B", decimal_param=6)
-        self.my_state4.asset_db.add_asset(asset_btc)
+        current_adb.add_asset(asset_btc)
         self.my_state4.change_folder_account(AccountPath("europe"), unit=asset_btc)
         self.my_state4.fx_market.add_quote(
-            self.my_state4.asset_db, asset_btc.name, JPY.name, 140000,
+            current_adb, asset_btc.name, JPY.name, 140000,
         )
-        ps4 = self.my_state4.print_summary()
+        ps4 = self.my_state4.print_summary(current_adb)
 
         assert ps1 is not None # noqa: S101
         assert ps2 is not None # noqa: S101
