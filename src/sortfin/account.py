@@ -40,6 +40,21 @@ class Account:
 
     def __str__(self) -> str:
         return f"{self.name} {self.unit}"
+    
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Account):
+            return False
+        if self.name != other.name or self.unit != other.unit:
+            return False
+        if self.is_terminal != other.is_terminal:
+            return False
+        if self.is_terminal:
+            return self.value == other.value
+        for acc in self.sub_accounts:
+            if acc not in other.sub_accounts:
+                return False
+        return True
+
 
     @property
     def is_terminal(self) -> bool:

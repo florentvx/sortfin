@@ -61,7 +61,20 @@ class Session:
         if date_copy not in self.data:
             msg = f"Date {date_copy} not found in statement data"
             raise ValueError(msg)
-        self.data[date_paste] = self.data[date_copy].copy()
+        self.data[date_paste] = self.data[date_copy].copy(date=date_paste)
+
+    def diff(
+            self,
+            date1: dt.datetime,
+            date2: dt.datetime,
+        ) -> str:
+        """Get the difference between two statements."""
+        if date1 not in self.data or date2 not in self.data:
+            msg = "Both dates must be present in session data"
+            raise ValueError(msg)
+        statement1 = self.data[date1]
+        statement2 = self.data[date2]
+        return statement1.diff(statement2)
 
     def print_structure(self, date: dt.datetime|None) -> str:
         """Print the structure of the session."""

@@ -18,6 +18,16 @@ class FxMarket:
             res += f"{t[0]}/{t[1]} : {round(v,4)}\n"
         return res
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, FxMarket):
+            return False
+        if len(self.quotes) != len(other.quotes):
+            return False
+        for k, v in self.quotes.items():
+            if k not in other.quotes or other.quotes[k] != v:
+                return False
+        return True
+
     def copy(self) -> FxMarket:
         res = FxMarket()
         res.quotes = {
@@ -140,3 +150,25 @@ class FxMarket:
             return True
         return False
 
+    def modify_quote(
+            self,
+            asset1: str,
+            asset2: str,
+            rate: float,
+        ) -> bool:
+        """Modify an existing quote in the FX market."""
+        if rate <= 0:
+            msg = f"Rate must be positive, not {rate}"
+            raise ValueError(msg)
+        if asset1 == asset2:
+            msg=f"Cannot modify quote for identical assets: {asset1}/{asset2}"
+            raise ValueError(msg)
+        if (asset1, asset2) not in self.quotes:
+            if (asset2, asset1) in self.quotes:
+                self.quotes[(asset1, asset2)] = 1 / rate
+            else:
+                msg = f"Quote for {asset1}/{asset2} does not exist"
+                raise ValueError(msg)
+
+        self.quotes[(asset1, asset2)] = rate
+        return True

@@ -28,9 +28,9 @@ class Statement:
             # check if this is needed
             self.print_summary(asset_db)
 
-    def copy(self, date: dt.datetime) -> Statement:
+    def copy(self, date: dt.datetime|None = None) -> Statement:
         return Statement(
-            date,
+            date if date is not None else self.date,
             self.fx_market.copy(),
             self.account.copy(),
         )

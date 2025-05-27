@@ -26,14 +26,16 @@ ACC_TEST = Account("root", unit=EUR.name,
     ],
 )
 
+STATEMENT = Statement(
+    dt.datetime(2025, 1, 5, tzinfo=dt.timezone.utc), FXM, ACC_TEST,
+)
+
 class TestStatement(unittest.TestCase):
 
     TZ = dt.timezone.utc
 
     def setUp(self) -> None:
-        self.my_state = Statement(
-            dt.datetime(2025, 1, 5, tzinfo=self.TZ), FXM, ACC_TEST,
-        )
+        self.my_state = STATEMENT.copy()
         self.my_state2=self.my_state.copy(
             dt.datetime(2025, 2, 5, tzinfo=self.TZ),
         )
