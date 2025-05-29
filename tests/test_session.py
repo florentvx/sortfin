@@ -25,7 +25,7 @@ class TestSession(unittest.TestCase):
         ).value = 2000
 
     def test_get_statement(self) -> None:
-        statement = self.session.get_statement(STATEMENT.date)
+        statement = self.session.get_statement(STATEMENT.date, is_exact_date=True)
         self.assertEqual(statement.date, STATEMENT.date) #noqa: PT009
         self.assertEqual(statement.fx_market, STATEMENT.fx_market) #noqa: PT009
         self.assertEqual(statement.account, STATEMENT.account) #noqa: PT009

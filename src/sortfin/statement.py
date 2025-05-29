@@ -112,13 +112,16 @@ class Statement:
             )}"
         )
 
-    def diff(self, other: Statement) -> str:
+    def diff(self, other: Statement) -> str:  # noqa: C901
         if not isinstance(other, Statement):
             msg="The other object must be an instance of statement"
             raise TypeError(msg)
         res = ""
         if self.date != other.date:
-            res += f"Date: {self.date} -> {other.date}\n"
+            if self.date.date() != other.date.date():
+                res += f"Date: {self.date.date()} -> {other.date.date()}\n"
+            else:
+                res += f"Date: {self.date} -> {other.date}\n"
 
         # Compare account structures
         diff_acc_struct = self.account.diff(other.account)

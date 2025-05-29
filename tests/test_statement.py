@@ -111,7 +111,7 @@ class TestStatement(unittest.TestCase):
 
         log_2 = self.my_state.diff(self.my_state2)
         bmk_2 = (
-            "Date: 2025-01-05 00:00:00+00:00 -> 2025-02-05 00:00:00+00:00\n"
+            "Date: 2025-01-05 -> 2025-02-05\n"
             "Account Structure Differences:\n"
             "Account Differences for root/europe/my_bank:\n"
             "Value: 1000 -> 100\n"
@@ -121,7 +121,7 @@ class TestStatement(unittest.TestCase):
 
         log_3 = self.my_state.diff(self.my_state3)
         bmk_3 = (
-            "Date: 2025-01-05 00:00:00+00:00 -> 2025-03-05 00:00:00+00:00\n"
+            "Date: 2025-01-05 -> 2025-03-05\n"
             "Account Structure Differences:\n"
             "Account Differences for root/usa/my_investment:\n"
             "Unit: USD -> JPY\nValue: 145600.2 -> 123456\n"
@@ -131,7 +131,7 @@ class TestStatement(unittest.TestCase):
 
         log_4 = self.my_state.diff(self.my_state4)
         bmk_4 = (
-            "Date: 2025-01-05 00:00:00+00:00 -> 2025-04-05 00:00:00+00:00\n"
+            "Date: 2025-01-05 -> 2025-04-05\n"
             "Account Structure Differences:\n"
             "Account Differences for root/europe:\n"
             "Unit: EUR -> BTC\n"

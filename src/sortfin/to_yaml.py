@@ -110,15 +110,17 @@ def from_session_to_list(session: Session) -> list:
     """Convert a session object to a list of values for YAML serialization."""
     return [
         _from_assetdb_to_list(session.asset_db),
-        {date.isoformat(): from_statement_to_list(statement, session.asset_db)
-         for date, statement in session.data.items()},
+        [
+            (date.isoformat(), from_statement_to_list(statement, session.asset_db))
+            for date, statement in session.data.items()
+        ],
     ]
 
 def from_list_to_session(serialized_list: list) -> Session:
     """Convert a list of values to a session object."""
     asset_db = _from_list_to_assetdb(serialized_list[0])
     session = Session(asset_db)
-    for date_str, statement_list in serialized_list[1].items():
+    for date_str, statement_list in serialized_list[1]:
         date = dt.datetime.fromisoformat(date_str)
         session.data[date] = from_list_to_statement(statement_list, asset_db)
     return session

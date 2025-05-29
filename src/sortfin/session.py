@@ -23,27 +23,65 @@ class Session:
             if asset_db is not None else AssetDatabase()
         self.data : dict[dt.datetime, Statement] = {}
 
-    def get_statement(
+    def dates(self) -> list[dt.datetime]:
+        """Get the list of dates for which statements are available."""
+        return sorted(self.data.keys())
+
+    def get_date(
             self,
             date: dt.datetime|None = None,
             *,
-            exact_date: bool = False,
-        ) -> Statement:
-        """Get the statement for a specific date."""
+            is_exact_date: bool = False,
+            is_before: bool = False,
+            is_after: bool = False,
+        ) -> dt.datetime:
+        """Get the date for a specific statement."""
+        if is_after and is_before:
+            msg = "Cannot specify both is_after and is_before"
+            raise ValueError(msg)
         if date is None:
             if len(self.data) == 0:
                 msg = "No statements available in session data"
                 raise ValueError(msg)
-            return self.data[max(self.data.keys())]
-
-        if date not in self.data and exact_date:
+            return max(self.dates())
+        if not (is_exact_date or is_before or is_after):
+            msg = "Must specify at least one of is_exact_date, is_before, or is_after"
+            raise ValueError(msg)
+        is_exact_date_only = is_exact_date and not (is_before or is_after)
+        if date not in self.data and is_exact_date_only:
             msg = f"Date {date} not found in session data"
             raise ValueError(msg)
-        statement_date_list = [dte for dte in self.data if dte <= date]
+        if is_exact_date and date in self.data:
+                return date
+        if is_before:
+            statement_date_list = [dte for dte in self.data if dte < date]
+            if len(statement_date_list) == 0:
+                msg = f"No statement found before or on {date}"
+                raise ValueError(msg)
+            return max(statement_date_list)
+        assert is_after # noqa: S101
+        statement_date_list = [dte for dte in self.data if dte > date]
         if len(statement_date_list) == 0:
-            msg = f"No statement found before or on {date}"
+            msg = f"No statement found after or on {date}"
             raise ValueError(msg)
-        return self.data[max(statement_date_list)]
+        return min(statement_date_list)
+
+    def get_statement(
+            self,
+            date: dt.datetime|None = None,
+            *,
+            is_exact_date: bool = True,
+            is_before: bool = False,
+            is_after: bool = False,
+        ) -> Statement:
+        return self.data[
+            self.get_date(
+                date,
+                is_exact_date=is_exact_date,
+                is_before=is_before,
+                is_after=is_after,
+            )
+        ]
 
     def copy_session(self, date: dt.datetime) -> Statement:
         state = Session(

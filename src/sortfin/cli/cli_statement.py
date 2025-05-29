@@ -71,10 +71,18 @@ def main(logger: logging.Logger|None = None) -> None:
     checkout_parser.add_argument("file_name", type=str,
                                  help="Name of the YAML file (without extension)")
 
+    newdate_parser = subparser.add_parser("new-date",
+                                          help="Create a new date in the session")
+    newdate_parser.add_argument("--date", type=str, default=None,
+                                help="Date to create in the session (format: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)")
+    
     diff_parser = subparser.add_parser("diff",
-                                       help="Compare a session with another")
-    diff_parser.add_argument("compare_file", type=str,
-                             help="Name of the second YAML file (without extension)")
+                                       help="Compare a statement with another (`date` - `date_ref`)")
+    diff_parser.add_argument("--date_ref", type=str, default=None,
+                             help="Date of the reference statement")
+    diff_parser.add_argument("--date", type=str, default=None,
+                             help="Date of the statement")
+    
 
     print_structure_parser = subparser.add_parser("print-structure",
                                                   help="Print the structure of the session")
@@ -167,16 +175,29 @@ def main(logger: logging.Logger|None = None) -> None:
     session = load_session_from_yaml(file_path)
     modified = False
 
+    if args.command == "new-date":
+        new_date = dt.datetime.now(tz=dt.timezone.utc)
+        if args.date is not None:
+            new_date = datetime_from_str(args.date, with_time=args.date.find(":") != -1)
+        session.copy_statement(session.get_date(new_date, is_exact_date=True, is_before=True), new_date)
+        modified = True
+        msg=f"New date {new_date} added to session"
+        logger.info(msg)
+
     if args.command == "diff":
-        raise NotImplementedError()
-        if not args.compare_file:
-            logger.error(
-                "Please provide the name of the second YAML file"
-                " using --compare_file",
+        my_session_dates = session.dates()
+        if len(my_session_dates) < 2:
+            raise ValueError(
+                "Not enough dates in the session to perform a diff. "
+                "Please add at least two statements.",
             )
-            return
-        session2 = load_session_from_yaml(Path(args.compare_file + ".yaml"))
-        diff_result = session.diff(session2)
+        diff_date = my_session_dates[-1]
+        diff_dateref = my_session_dates[-2]
+        if args.date is not None:
+            diff_date=datetime_from_str(args.date, with_time=args.date.find(":") != -1)
+        if args.date_ref is not None:
+            diff_dateref=datetime_from_str(args.date_ref, with_time=args.date_ref.find(":") != -1)
+        diff_result = session.diff(diff_dateref, diff_date)
         logger.info(diff_result)
         return
 
