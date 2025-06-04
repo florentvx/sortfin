@@ -108,15 +108,16 @@ def from_list_to_statement(serialized_list: list, asset_db: AssetDatabase) -> St
 
 def from_session_to_list(session: Session) -> list:
     """Convert a session object to a list of values for YAML serialization."""
-    date_list = session.dates()
+    key_list = session.keys()
     return [
         _from_assetdb_to_list(session.asset_db),
         [
             (
                 date.isoformat(),
+                branch,
                 from_statement_to_list(session.data[date], session.asset_db),
             )
-            for date in date_list
+            for (date, branch) in key_list
         ],
     ]
 
@@ -124,7 +125,7 @@ def from_list_to_session(serialized_list: list) -> Session:
     """Convert a list of values to a session object."""
     asset_db = _from_list_to_assetdb(serialized_list[0])
     session = Session(asset_db)
-    for date_str, statement_list in serialized_list[1]:
+    for date_str, branch, statement_list in serialized_list[1]:
         date = dt.datetime.fromisoformat(date_str)
-        session.data[date] = from_list_to_statement(statement_list, asset_db)
+        session.data[(date, branch)] = from_list_to_statement(statement_list, asset_db)
     return session
