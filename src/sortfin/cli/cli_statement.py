@@ -66,10 +66,10 @@ def main(logger: logging.Logger|None = None) -> None:
     create_parser.add_argument("--initial_date", type=str, default=None,
                                help="Initial Date")
 
-    checkout_parser = subparser.add_parser("checkout",
-                                           help="Checkout an existing session")
-    checkout_parser.add_argument("file_name", type=str,
-                                 help="Name of the YAML file (without extension)")
+    checkout_session_parser = subparser.add_parser("checkout-session",
+                                                   help="Checkout an existing session")
+    checkout_session_parser.add_argument("file_name", type=str,
+                                         help="Name of the YAML file (without extension)")
 
     newdate_parser = subparser.add_parser("new-date",
                                           help="Create a new date in the session")
@@ -81,6 +81,10 @@ def main(logger: logging.Logger|None = None) -> None:
     diff_parser.add_argument("--date_ref", type=str, default=None,
                              help="Date of the reference statement")
     diff_parser.add_argument("--date", type=str, default=None,
+                             help="Date of the statement")
+    diff_parser.add_argument("--branch_ref", type=str, default=Session.DEFAULT_BRANCH,
+                             help="Date of the statement")
+    diff_parser.add_argument("--branch", type=str, default=Session.DEFAULT_WORKING_BRANCH,
                              help="Date of the statement")
     
 
@@ -168,7 +172,7 @@ def main(logger: logging.Logger|None = None) -> None:
         logger.info(msg)
         return
 
-    if args.command == "checkout":
+    if args.command == "checkout-session":
         session_path.write_text(args.file_name)
         return
 
@@ -180,6 +184,7 @@ def main(logger: logging.Logger|None = None) -> None:
         if args.date is not None:
             new_date = datetime_from_str(args.date, with_time=args.date.find(":") != -1)
         session.copy_statement(session.get_date(new_date, is_exact_date=True, is_before=True), new_date)
+        session.copy_statement(new_date, new_date, branch_copy=Session.DEFAULT_BRANCH, branch_paste=Session.DEFAULT_WORKING_BRANCH)
         modified = True
         msg=f"New date {new_date} added to session"
         logger.info(msg)
@@ -197,7 +202,7 @@ def main(logger: logging.Logger|None = None) -> None:
             diff_date=datetime_from_str(args.date, with_time=args.date.find(":") != -1)
         if args.date_ref is not None:
             diff_dateref=datetime_from_str(args.date_ref, with_time=args.date_ref.find(":") != -1)
-        diff_result = session.diff(diff_dateref, diff_date)
+        diff_result = session.diff(diff_dateref, diff_date, args.branch_ref, args.branch)
         logger.info(diff_result)
         return
 
@@ -208,11 +213,18 @@ def main(logger: logging.Logger|None = None) -> None:
                 args.date,
                 with_time=args.date.find(":") != -1,
             )
-        logger.info(session.print_structure(print_structure_date))
+        logger.info(session.print_structure(
+            print_structure_date, 
+            branch=Session.DEFAULT_WORKING_BRANCH,
+        ))
         return
 
     if args.command == "print-summary":
-        logger.info(session.print_summary(date=None, acc_path=AccountPath(args.account_path)))
+        logger.info(session.print_summary(
+            date=None,
+            branch=Session.DEFAULT_WORKING_BRANCH,
+            acc_path=AccountPath(args.account_path))
+        )
         return
 
     if args.command == "add-account":
@@ -227,19 +239,19 @@ def main(logger: logging.Logger|None = None) -> None:
         if args.account_type == "terminal":
             new_account = Account(
                 args.account_name,
-                unit=session.get_account(folder_path).unit,
+                unit=session.get_account(None, Session.DEFAULT_WORKING_BRANCH, folder_path).unit,
                 value=0.0,
             )
         elif args.account_type == "folder":
             new_account = Account(
                 args.account_name,
-                unit=session.get_account(folder_path).unit,
+                unit=session.get_account(None, Session.DEFAULT_WORKING_BRANCH, folder_path).unit,
                 sub_accounts=[],
             )
         else:
             msg=f"Account type {args.account_type} not recognized"
             raise ValueError(msg)
-        session.add_account(folder_path, new_account)
+        session.add_account(None, Session.DEFAULT_WORKING_BRANCH, folder_path, new_account)
         modified = True
 
     elif args.command == "change-account-value":
@@ -251,7 +263,7 @@ def main(logger: logging.Logger|None = None) -> None:
             return
         msg=f"Account Value: {args.account_value}"
         logger.info(msg)
-        account_to_modify = session.get_account(AccountPath(args.account_path))
+        account_to_modify = session.get_account(None, Session.DEFAULT_WORKING_BRANCH, AccountPath(args.account_path))
         if not account_to_modify.is_terminal:
             msg=f"Account {args.account_path} is not a terminal account"
             logger.info(msg)
@@ -289,11 +301,11 @@ def main(logger: logging.Logger|None = None) -> None:
             raise ValueError(msg)
         session.asset_db.add_asset(new_asset)
         if not inv_rate:
-            session.get_fxmarket().add_quote(
+            session.get_fxmarket(branch=Session.DEFAULT_WORKING_BRANCH).add_quote(
                 session.asset_db, new_asset.name, asset_versus.name, args.rate,
             )
         else:
-            session.get_fxmarket().add_quote(
+            session.get_fxmarket(branch=Session.DEFAULT_WORKING_BRANCH).add_quote(
                 session.asset_db, asset_versus.name, new_asset.name, args.rate,
             )
         modified = True
@@ -305,7 +317,7 @@ def main(logger: logging.Logger|None = None) -> None:
                 " using --account_path and --asset_name",
             )
             return
-        account_to_modify = session.get_account(AccountPath(args.account_path))
+        account_to_modify = session.get_account(None, Session.DEFAULT_WORKING_BRANCH, AccountPath(args.account_path))
         if session.asset_db.get_asset_from_name(args.asset_name) is None:
             msg=f"asset not found: {args.asset_name}"
             raise ValueError(msg)
@@ -321,3 +333,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     main(logger)
+
+
+#TODO: Checkout Date!!!
+# -> Delete working branch if moving from date and statements are identical
