@@ -11,21 +11,25 @@ from .test_statement import STATEMENT
 class TestSession(unittest.TestCase):
     def setUp(self) -> None:
         self.session = Session(ASSET_DB)
-        self.session.data[STATEMENT.date] = STATEMENT.copy()
+        self.session.data[(STATEMENT.date, Session.DEFAULT_BRANCH)] = STATEMENT.copy()
         self.new_date = STATEMENT.date + dt.timedelta(days=1)
         self.session.copy_statement(
             STATEMENT.date,
             self.new_date,
         )
-        self.session.data[self.new_date].fx_market.modify_quote(
+        self.session.data[self.new_date, Session.DEFAULT_BRANCH].fx_market.modify_quote(
             "EUR", "USD", 1.1,
         )
-        self.session.data[self.new_date].account.get_account(
+        self.session.data[self.new_date, Session.DEFAULT_BRANCH].account.get_account(
             AccountPath("europe/my_bank"),
         ).value = 2000
 
     def test_get_statement(self) -> None:
-        statement = self.session.get_statement(STATEMENT.date, is_exact_date=True)
+        statement = self.session.get_statement(
+            STATEMENT.date,
+            Session.DEFAULT_BRANCH,
+            is_exact_date=True,
+        )
         self.assertEqual(statement.date, STATEMENT.date) #noqa: PT009
         self.assertEqual(statement.fx_market, STATEMENT.fx_market) #noqa: PT009
         self.assertEqual(statement.account, STATEMENT.account) #noqa: PT009
