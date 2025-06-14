@@ -1,4 +1,4 @@
-from .cli_statement import main  # noqa: D104
+from .cli_statement import main
 
 __all__ = [
     "main",

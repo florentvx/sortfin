@@ -27,14 +27,19 @@ class Session:
             if asset_db is not None else AssetDatabase()
         self.data : dict[tuple[dt.datetime, str], Statement] = {}
 
+    def keys(self) -> list[tuple[dt.datetime, str]]:
+        """Get the list of keys (date, branch) for the session data."""
+        return sorted(self.data.keys(), key=lambda x: (x[0], x[1]))
+
     def dates(self, branch: str|None = DEFAULT_BRANCH) -> list[dt.datetime]:
         """Get the list of dates for which statements are available."""
         keys = [date for (date, name) in self.data if branch is None or name == branch]
         return sorted(keys)
 
-    def keys(self) -> list[tuple[dt.datetime, str]]:
-        """Get the list of keys (date, branch) for the session data."""
-        return sorted(self.data.keys(), key=lambda x: (x[0], x[1]))
+    def branches(self) -> list[str]:
+        branches = list({name for (date, name) in self.data})
+        branches.sort()
+        return branches
 
     def get_date(
             self,
@@ -64,7 +69,7 @@ class Session:
         if is_exact_date and (date, branch) in self.data:
                 return date
         if is_before:
-            statement_date_list = [dte for dte in self.data if dte < date]
+            statement_date_list = [dte for dte, brch in self.data if dte < date]
             if len(statement_date_list) == 0:
                 msg = f"No statement found before or on {date}"
                 raise ValueError(msg)

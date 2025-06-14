@@ -115,7 +115,7 @@ def from_session_to_list(session: Session) -> list:
             (
                 date.isoformat(),
                 branch,
-                from_statement_to_list(session.data[date], session.asset_db),
+                from_statement_to_list(session.data[(date, branch)], session.asset_db),
             )
             for (date, branch) in key_list
         ],

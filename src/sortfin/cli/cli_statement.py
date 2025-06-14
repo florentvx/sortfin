@@ -27,12 +27,35 @@ def save_session_to_yaml(session: Session, file_path: Path) -> None:
         yaml.safe_dump(session_dict, file)
 
 def datetime_from_str(date_str: str, with_time: bool) -> dt.datetime:
-    format_str="%Y-%m-%d %H:%M:%S" if with_time else "%Y-%m-%d"
+    format_str="%Y-%m-%dT%H:%M:%S" if with_time else "%Y-%m-%d"
     res = dt.datetime.strptime(date_str, format_str)
     if not with_time:
         res=res.replace(hour=23, minute=59, second=59, microsecond=999999)
     res=res.replace(tzinfo=dt.timezone.utc)
     return res
+
+def load_session_info(info_path: Path) -> tuple[str, str, dt.datetime]|None:
+    session_info = None
+    with info_path.open("r") as info_file:
+        session_info=yaml.safe_load(info_file)
+    if session_info is None:
+        return None
+    session_info_split = session_info.split(",")
+    assert len(session_info_split) == 3
+    return (
+        session_info_split[0],
+        session_info_split[1],
+        dt.datetime.fromisoformat(session_info_split[2]),
+    )
+
+def save_session_info(
+        session: str,
+        branch: str,
+        date: dt.datetime,
+        file_path: Path,
+    ) -> None:
+    file_path.write_text(f"{session},{branch},{date.isoformat()}")
+    return
 
 def main(logger: logging.Logger|None = None) -> None:
     """Handle command line arguments and execute."""
@@ -40,103 +63,320 @@ def main(logger: logging.Logger|None = None) -> None:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         logger = logging.getLogger(__name__)
 
-    session_name="<UNSET>"
-    session_path = Path.cwd() / ".sortfin" / ".session"
-    if session_path.exists():
-        with session_path.open("r") as session_file:
-            session_name=session_file.readline()
+    info_session="<UNSET>"
+    info_branch=None
+    info_date=None
+    info_path = Path.cwd() / ".sortfin" / ".info"
+    
+    if info_path.exists():
+        session_info = load_session_info(info_path)
+        if session_info is not None:
+            info_session, info_branch, info_date = session_info
     else:
-        if not session_path.parent.exists():
-            session_path.parent.mkdir()
-        session_path.touch()
-        print("No session file found. Creating a new one.")
-
+        if not info_path.parent.exists():
+            info_path.parent.mkdir()
+        info_path.touch()
+        #TODO what happens if file empty??
+        print("No info file found. Creating a new one.")
+        
     parser = argparse.ArgumentParser(description="Accounting Library CLI")
-    subparser = parser.add_subparsers(dest="command",
-                                      help="Sub-command to execute")
+    subparser = parser.add_subparsers(
+        dest="command",
+        help="Sub-command to execute",
+    )
 
-    create_parser = subparser.add_parser("create",
-                                         help="Create a new session")
-    create_parser.add_argument("file_name", type=str,
-                               help="Name of new file")
-    create_parser.add_argument("asset_name", type=str,
-                               help="Name of the base asset")
-    create_parser.add_argument("asset_symbol", type=str,
-                               help="Symbol of the base asset")
-    create_parser.add_argument("--initial_date", type=str, default=None,
-                               help="Initial Date")
+#region create
 
-    checkout_session_parser = subparser.add_parser("checkout-session",
-                                                   help="Checkout an existing session")
-    checkout_session_parser.add_argument("file_name", type=str,
-                                         help="Name of the YAML file (without extension)")
+    create_parser = subparser.add_parser(
+        "create",
+        help="Create a new session",
+    )
+    create_parser.add_argument(
+        "file_name",
+        type=str,
+        help="Name of new file",
+    )
+    create_parser.add_argument(
+        "--asset_name",
+        type=str,
+        default="USD",
+        help="Name of the base asset",
+    )
+    create_parser.add_argument(
+        "--asset_symbol",
+        type=str,
+        default="$",
+        help="Symbol of the base asset",
+    )
+    create_parser.add_argument(
+        "--initial_date",
+        type=str,
+        default=None,
+        help="Initial Date (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS) (default=now utc)",
+    )
 
-    newdate_parser = subparser.add_parser("new-date",
-                                          help="Create a new date in the session")
-    newdate_parser.add_argument("--date", type=str, default=None,
-                                help="Date to create in the session (format: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)")
+#endregion
+
+#region change-session
+
+    checkout_session_parser = subparser.add_parser(
+        "change-session",
+        help="Change to another existing session",
+    )
+    checkout_session_parser.add_argument(
+        "file_name",
+        type=str,
+        help="Name of the YAML file (without extension)",
+    )
+
+#endregion
+
+#region show-branches
+
+    _ = subparser.add_parser(
+        "show-branches",
+        help="Show all available branches",
+    )
     
-    diff_parser = subparser.add_parser("diff",
-                                       help="Compare a statement with another (`date` - `date_ref`)")
-    diff_parser.add_argument("--date_ref", type=str, default=None,
-                             help="Date of the reference statement")
-    diff_parser.add_argument("--date", type=str, default=None,
-                             help="Date of the statement")
-    diff_parser.add_argument("--branch_ref", type=str, default=Session.DEFAULT_BRANCH,
-                             help="Date of the statement")
-    diff_parser.add_argument("--branch", type=str, default=Session.DEFAULT_WORKING_BRANCH,
-                             help="Date of the statement")
+#endregion
+
+#region show-dates
+
+    showdates_parser = subparser.add_parser(
+        "show-dates",
+        help=(
+            "show all different available dates"
+            "by default: shows all branch of MAIN branch"
+        ),
+    )
+    showdates_parser.add_argument(
+        "--branch",
+        type=str,
+        default=Session.DEFAULT_BRANCH,
+        help="Specify a branch in particular"
+    )
     
+#endregion
 
-    print_structure_parser = subparser.add_parser("print-structure",
-                                                  help="Print the structure of the session")
-    print_structure_parser.add_argument("--date", type=str, default=None,
-                                        help="Date of the session to print structure for")
+#region checkout-date
 
-    print_summary_parser = subparser.add_parser("print-summary",
-                                                help="Print the summary of the session")
-    print_summary_parser.add_argument("--account_path", type=str, default=None,
-                                      help="Path to the account")
+    showdates_parser = subparser.add_parser(
+        "checkout-date",
+        help="checkout an existing date",
+    )
+    showdates_parser.add_argument(
+        "--date",
+        type=str,
+        default=None,
+        help="Date (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS) (default=now utc)",
+    )
 
-    add_account_parser = subparser.add_parser("add-account",
-                                              help="Add a new account within a folder account")
-    add_account_parser.add_argument("folder_path", type=str,
-                                    help="Path to the folder account where the new account will be added")
-    add_account_parser.add_argument("account_name", type=str,
-                                    help="Name of the account to add")
-    add_account_parser.add_argument("account_type", choices=["terminal", "folder"],
-                                    help="Type of the account (terminal or folder)")
+#endregion
 
-    change_account_value_parser = subparser.add_parser("change-account-value",
-                                                       help="Change the value of an account")
-    change_account_value_parser.add_argument("account_path", type=str,
-                                             help="Path to the terminal account")
-    change_account_value_parser.add_argument("account_value", type=float,
-                                             help="New value of the terminal account")
+#region push
 
-    add_asset_parser = subparser.add_parser("add-asset",
-                                            help="Add a new asset to the session")
-    add_asset_parser.add_argument("asset_name", type=str,
-                                  help="Name of the new asset")
-    add_asset_parser.add_argument("asset_symbol", type=str,
-                                  help="Symbol of the new asset")
-    add_asset_parser.add_argument("asset_pair", type=str,
-                                  help="Name of the existing asset to pair with the new asset") #noqa: E501
-    add_asset_parser.add_argument("rate", type=float,
-                                  help="Rate for the new asset and existing asset pair")
+    push_parser = subparser.add_parser(
+        "push",
+        help="Push the current working branch to the main branch.\n",
+    )
+    push_parser.add_argument(
+        "--branch",
+        type=str,
+        default=Session.DEFAULT_BRANCH,
+        help="Branch to push to (default: main branch)",
+    )
 
-    change_asset_parser = subparser.add_parser("change-account-asset",
-                                               help="Change asset of account")
-    change_asset_parser.add_argument("account_path", type=str,
-                                     help="Path to the account")
-    change_asset_parser.add_argument("asset_name", type=str,
-                                     help="Name of the new asset")
+#endregion
+
+#region add-date
+
+    newdate_parser = subparser.add_parser(
+        "add-date",
+        help="Create a new date in the session",
+    )
+    newdate_parser.add_argument(
+        "--date",
+        type=str,
+        default=None,
+        help="Date to create in the session (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS) (default: now utc)",
+    )
+
+#endregion
+
+#region diff
+    
+    diff_parser = subparser.add_parser(
+        "diff",
+        help=(
+            "Compare a statement with another (`date` of `branch` - `date_ref` of `branch_ref`)\n"
+            "by default:\n"
+            "- `date_ref` = current date\n"
+            "- `date` = `date_ref`\n"
+            "- if `date` == `date_ref` -> 'working' `branch` versus 'main' `branch`\n"
+            "- otherwise 'main' `branch` versus 'main' `branch`\n"
+        )
+    )
+    diff_parser.add_argument(
+        "--date_ref",
+        type=str,
+        default=None,
+        help="Date of the reference statement (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"
+    )
+    diff_parser.add_argument(
+        "--date",
+        type=str,
+        default=None,
+        help="Date of the statement (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
+    )
+    diff_parser.add_argument(
+        "--branch_ref",
+        type=str,
+        default=Session.DEFAULT_BRANCH,
+        help="Branch of the reference statement",
+    )
+    diff_parser.add_argument(
+        "--branch",
+        type=str,
+        default=Session.DEFAULT_WORKING_BRANCH,
+        help="Branch of the statement",
+    )
+
+#endregion
+
+#region print-structure
+
+    print_structure_parser = subparser.add_parser(
+        "print-structure",
+        help="Print the structure of the current statement",
+    )
+    print_structure_parser.add_argument(
+        "--branch",
+        type=str,
+        default=Session.DEFAULT_WORKING_BRANCH,
+        help="Branch of the printed statement",
+    )
+
+#endregion
+
+#region print-summary
+
+    print_summary_parser = subparser.add_parser(
+        "print-summary",
+        help="Print the summary of the session",
+    )
+    print_summary_parser.add_argument(
+        "--account_path",
+        type=str,
+        default=None,
+        help="Path to the account",
+    )
+    print_summary_parser.add_argument(
+        "--branch",
+        type=str,
+        default=Session.DEFAULT_WORKING_BRANCH,
+        help="Branch of the printed statement",
+    )
+
+#endregion
+
+#region add-account
+
+    add_account_parser = subparser.add_parser(
+        "add-account",
+        help="Add a new account within a folder account",
+    )
+    add_account_parser.add_argument(
+        "account_name",
+        type=str,
+        help="Name of the account to add",
+    )
+    add_account_parser.add_argument(
+        "folder_path",
+        type=str,
+        help="Path to the folder account where the new account will be added",
+    )
+    add_account_parser.add_argument(
+        "account_type",
+        choices=["terminal", "folder"],
+        help="Type of the account (terminal or folder)",
+    )
+
+#endregion
+
+#region change-account-value
+
+    change_account_value_parser = subparser.add_parser(
+        "change-account-value",
+        help="Change the value of an account",
+    )
+    change_account_value_parser.add_argument(
+        "account_path",
+        type=str,
+        help="Path to the terminal account",
+    )
+    change_account_value_parser.add_argument(
+        "account_value",
+        type=float,
+        help="New value of the terminal account",
+    )
+
+#endregion
+
+#region add-asset
+
+    add_asset_parser = subparser.add_parser(
+        "add-asset",
+        help="Add a new asset to the session",
+    )
+    add_asset_parser.add_argument(
+        "asset_name",
+        type=str,
+        help="Name of the new asset",
+    )
+    add_asset_parser.add_argument(
+        "asset_symbol",
+        type=str,
+        help="Symbol of the new asset",
+    )
+    add_asset_parser.add_argument(
+        "asset_pair",
+        type=str,
+        help="Name of the existing asset to pair with the new asset",
+    )
+    add_asset_parser.add_argument(
+        "rate",
+        type=float,
+        help="Rate for the new asset and existing asset pair",
+    )
+
+#endregion
+
+#region change-account-asset
+
+    change_asset_parser = subparser.add_parser(
+        "change-account-asset",
+        help="Change asset of account",
+    )
+    change_asset_parser.add_argument(
+        "account_path",
+        type=str,
+        help="Path to the account",
+    )
+    change_asset_parser.add_argument(
+        "asset_name",
+        type=str,
+        help="Name of the new asset",
+    )
+    
+#endregion
 
     args = parser.parse_args()
-    if session_name == "<UNSET>" and args.command not in ["create", "checkout"]:
+    if info_session == "<UNSET>" and args.command not in ["create", "checkout"]:
         logger.error("Session name not set. Please create a new session first.")
         return
-    file_path = Path(session_name + ".yaml")
+    
+
+#region create
 
     if args.command == "create":
         initial_date = dt.datetime.now(tz=dt.timezone.utc)
@@ -146,88 +386,197 @@ def main(logger: logging.Logger|None = None) -> None:
                 with_time=args.initial_date.find(":") != -1
             )
             
-        asset_name = "USD"
-        asset_symbol = "$"
-        if args.asset_name is None:
-            if args.asset_symbol is not None:
-                logger.error(
-                    "Please provide the asset name"
-                    " using --asset_name (as symbol provided)",
-                )
-                return
-        else:
-            asset_name = args.asset_name
-            asset_symbol = args.asset_symbol
-            if args.asset_symbol is None:
-                asset_symbol = asset_name[0].upper()
-                msg=(
-                    "Asset symbol not provided"
-                    f" using first letter of asset name: {asset_symbol}")
-                logger.error(msg)
-        session = initialize_session(Asset(asset_name, asset_symbol), initial_date)
+        session = initialize_session(Asset(args.asset_name, args.asset_symbol), initial_date)
         file_path = Path(args.file_name + ".yaml")
-        save_session_to_yaml(session, Path(args.file_name + ".yaml"))
-        session_path.write_text(args.file_name)
+        if file_path.exists():
+            err_msg=f"file already exists: {file_path}"
+            logger.error(err_msg)
+            return
+        save_session_to_yaml(session, file_path)
+        save_session_info(args.file_name, Session.DEFAULT_BRANCH, initial_date, info_path)
         msg=f"Session created and saved to {file_path}"
         logger.info(msg)
         return
+    
+#endregion
 
-    if args.command == "checkout-session":
-        session_path.write_text(args.file_name)
+#region change-session
+
+    if args.command == "change-session":
+        file_path = Path(args.file_name + ".yaml")
+        if not file_path.exists():
+            err_msg=f"file does not exist: {file_path}"
+            logger.error(err_msg)
+            return
+        last_date = load_session_from_yaml(file_path).dates()[-1]
+        save_session_info(
+            args.file_name,
+            Session.DEFAULT_BRANCH,
+            last_date,
+            info_path,
+        )
         return
+    
+#endregion
 
-    session = load_session_from_yaml(file_path)
+    file_path = Path(info_session + ".yaml")
+    session : Session = load_session_from_yaml(file_path)
     modified = False
 
-    if args.command == "new-date":
+#region show-branches
+
+    if args.command == "show-branches":
+        logger.info("Branches: " + "\n".join(session.branches()))
+        return
+    
+#endregion
+
+#region show-dates
+
+    elif args.command == "show-dates":
+        date_list=list(map(dt.datetime.isoformat,session.dates(branch=args.branch)))
+        final_list = [d.split("T")[0] for d in date_list]
+        for i in range(1, len(final_list)):
+            if final_list[i] == final_list[i-1]:
+                final_list[i-1] = date_list[i-1]
+                final_list[i] = date_list[i]
+        logger.info(f"Dates (of branch {args.branch})\n" + "\n".join(final_list))
+        return
+
+#endregion
+
+#region checkout-date
+
+    elif args.command == "checkout-date":
+        if args.date is None:
+            args.date = dt.datetime.now(tz=dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        _date = datetime_from_str(args.date, with_time=args.date.find(":") != -1)
+        info_date = session.get_date(
+            _date,
+            branch=info_branch,
+            is_exact_date=True,
+            is_before=True,
+        )
+        save_session_info(
+            info_session,
+            Session.DEFAULT_BRANCH,
+            info_date,
+            info_path,
+        )
+        msg=f"Checked out date {info_date} in branch {info_branch}"
+        logger.info(msg)
+        return
+
+#endregion
+
+#region push
+
+    elif args.command == "push":
+        if args.branch is None:
+            args.branch = Session.DEFAULT_MAIN_BRANCH
+        session.copy_statement(
+            date_copy=info_date,
+            date_paste=info_date,
+            branch_copy=Session.DEFAULT_WORKING_BRANCH,
+            branch_paste=args.branch,
+        )
+        modified = True
+        msg=f"Session pushed to branch {args.branch} at date {info_date}"
+        logger.info(msg)
+
+
+#endregion
+
+#region add-date
+
+    elif args.command == "add-date":
         new_date = dt.datetime.now(tz=dt.timezone.utc)
         if args.date is not None:
             new_date = datetime_from_str(args.date, with_time=args.date.find(":") != -1)
-        session.copy_statement(session.get_date(new_date, is_exact_date=True, is_before=True), new_date)
-        session.copy_statement(new_date, new_date, branch_copy=Session.DEFAULT_BRANCH, branch_paste=Session.DEFAULT_WORKING_BRANCH)
+        session.copy_statement(
+            session.get_date(new_date, is_exact_date=True, is_before=True),
+            new_date,
+        )
+        session.copy_statement(
+            new_date,
+            new_date,
+            branch_copy=Session.DEFAULT_BRANCH,
+            branch_paste=Session.DEFAULT_WORKING_BRANCH,
+        )
         modified = True
         msg=f"New date {new_date} added to session"
         logger.info(msg)
 
-    if args.command == "diff":
+#endregion
+
+#region diff
+
+    elif args.command == "diff":
         my_session_dates = session.dates()
         if len(my_session_dates) < 2:
             raise ValueError(
                 "Not enough dates in the session to perform a diff. "
                 "Please add at least two statements.",
             )
-        diff_date = my_session_dates[-1]
-        diff_dateref = my_session_dates[-2]
+        diff_date = info_date
+        diff_dateref = info_date
         if args.date is not None:
             diff_date=datetime_from_str(args.date, with_time=args.date.find(":") != -1)
+            diff_date=session.get_date(
+                diff_date,
+                branch=Session.DEFAULT_WORKING_BRANCH,
+                is_exact_date=True,
+                is_before=True,
+            )
         if args.date_ref is not None:
             diff_dateref=datetime_from_str(args.date_ref, with_time=args.date_ref.find(":") != -1)
-        diff_result = session.diff(diff_dateref, diff_date, args.branch_ref, args.branch)
+            diff_dateref = session.get_date(
+                diff_dateref,
+                branch=Session.DEFAULT_WORKING_BRANCH,
+                is_exact_date=True,
+                is_before=True,
+            )
+        branch_ref = args.branch_ref if args.branch_ref is not None else Session.DEFAULT_BRANCH
+        branch_diff = args.branch if args.branch is not None else (
+            Session.DEFAULT_WORKING_BRANCH if diff_dateref == diff_date else Session.DEFAULT_BRANCH
+        )
+
+        diff_result = session.diff(diff_dateref, diff_date, branch_ref, branch_diff)
         logger.info(diff_result)
         return
+    
+#endregion
 
-    if args.command == "print-structure":
-        print_structure_date : dt.datetime|None = None
-        if args.date is not None:
-            print_structure_date = datetime_from_str(
-                args.date,
-                with_time=args.date.find(":") != -1,
-            )
-        logger.info(session.print_structure(
-            print_structure_date, 
-            branch=Session.DEFAULT_WORKING_BRANCH,
-        ))
-        return
+#region print-structure
 
-    if args.command == "print-summary":
-        logger.info(session.print_summary(
-            date=None,
-            branch=Session.DEFAULT_WORKING_BRANCH,
-            acc_path=AccountPath(args.account_path))
+    elif args.command == "print-structure":
+        logger.info(
+            session.print_structure(
+                date=info_date, 
+                branch=args.branch,
+            ),
         )
         return
 
-    if args.command == "add-account":
+#endregion
+
+#region print-summary
+
+    elif args.command == "print-summary":
+        logger.info(
+            session.print_summary(
+                date=info_date,
+                branch=Session.DEFAULT_WORKING_BRANCH,
+                acc_path=AccountPath(args.account_path)
+            ),
+        )
+        return
+
+#endregion
+
+#region add-account
+
+    elif args.command == "add-account":
         if not args.account_name or not args.folder_path or not args.account_type:
             logger.error(
                 "Please provide the account name and folder path"
@@ -239,20 +588,32 @@ def main(logger: logging.Logger|None = None) -> None:
         if args.account_type == "terminal":
             new_account = Account(
                 args.account_name,
-                unit=session.get_account(None, Session.DEFAULT_WORKING_BRANCH, folder_path).unit,
+                unit=session.get_account(
+                    info_date,
+                    Session.DEFAULT_WORKING_BRANCH,
+                    folder_path
+                ).unit,
                 value=0.0,
             )
         elif args.account_type == "folder":
             new_account = Account(
                 args.account_name,
-                unit=session.get_account(None, Session.DEFAULT_WORKING_BRANCH, folder_path).unit,
+                unit=session.get_account(
+                    info_date,
+                    Session.DEFAULT_WORKING_BRANCH,
+                    folder_path,
+                ).unit,
                 sub_accounts=[],
             )
         else:
             msg=f"Account type {args.account_type} not recognized"
             raise ValueError(msg)
-        session.add_account(None, Session.DEFAULT_WORKING_BRANCH, folder_path, new_account)
+        session.add_account(info_date, Session.DEFAULT_WORKING_BRANCH, folder_path, new_account)
         modified = True
+
+#endregion
+
+#region change-account-value
 
     elif args.command == "change-account-value":
         if not args.account_path or args.account_value is None:
@@ -263,13 +624,21 @@ def main(logger: logging.Logger|None = None) -> None:
             return
         msg=f"Account Value: {args.account_value}"
         logger.info(msg)
-        account_to_modify = session.get_account(None, Session.DEFAULT_WORKING_BRANCH, AccountPath(args.account_path))
+        account_to_modify = session.get_account(
+            info_date,
+            Session.DEFAULT_WORKING_BRANCH,
+            AccountPath(args.account_path),
+        )
         if not account_to_modify.is_terminal:
             msg=f"Account {args.account_path} is not a terminal account"
             logger.info(msg)
             return
         account_to_modify.value = args.account_value
         modified = True
+
+#endregion
+
+#region add-asset
 
     elif args.command == "add-asset":
         if not args.asset_name or not args.asset_symbol or \
@@ -310,6 +679,10 @@ def main(logger: logging.Logger|None = None) -> None:
             )
         modified = True
 
+#endregion
+
+#region change-account-asset
+
     elif args.command == "change-account-asset":
         if not args.account_path or not args.asset_name:
             logger.error(
@@ -323,6 +696,13 @@ def main(logger: logging.Logger|None = None) -> None:
             raise ValueError(msg)
         account_to_modify.unit =args.asset_name
         modified = True
+
+#endregion
+
+    else:
+        msg=f"Command {args.command} not recognized"
+        logger.error(msg)
+        return
 
     if modified:
         save_session_to_yaml(session, file_path)

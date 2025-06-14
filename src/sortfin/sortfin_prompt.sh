@@ -19,9 +19,11 @@ export COLOR_WHITE='\e[1;37m'
 
 # Function to update the shell prompt based on the presence of a .session file
 function set_sortfin_prompt() {
-    if [ -f ".sortfin/.session" ]; then
-        session_file=$(cat .sortfin/.session)
-        export PS1="$COLOR_LIGHT_BLUE(sortfin session: $(basename $session_file)) $COLOR_GREEN\u@\h: $COLOR_YELLOW\w\n$COLOR_NC\$ "
+    if [ -f ".sortfin/.info" ]; then
+        content=$(cat .sortfin/.info)
+        IFS="," read -r session branch date <<< "$content"
+        IFS="T" read -r date0 time0 <<< "$date"
+        export PS1="$COLOR_LIGHT_BLUE($session|$branch|$date0) $COLOR_GREEN\u@\h: $COLOR_YELLOW\w\n$COLOR_NC\$ "
     else
         export PS1="$COLOR_GREEN\u@\h: $COLOR_YELLOW\w\n$COLOR_NC\$ "
     fi
