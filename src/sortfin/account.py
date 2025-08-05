@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Iterator
 
 from .account_path import AccountPath
+from .colors import Color
 from .price import Price
 
 if TYPE_CHECKING:
@@ -10,7 +11,7 @@ if TYPE_CHECKING:
     from .fx_market import FxMarket
 
 
-class Account:
+class Account:  # noqa: PLW1641
     def __init__(
             self,
             name: str,
@@ -40,7 +41,7 @@ class Account:
 
     def __str__(self) -> str:
         return f"{self.name} {self.unit}"
-    
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Account):
             return False
@@ -50,11 +51,7 @@ class Account:
             return False
         if self.is_terminal:
             return self.value == other.value
-        for acc in self.sub_accounts:
-            if acc not in other.sub_accounts:
-                return False
-        return True
-
+        return all(acc in other.sub_accounts for acc in self.sub_accounts)
 
     @property
     def is_terminal(self) -> bool:
@@ -98,6 +95,29 @@ class Account:
             raise ValueError(msg)
         return sa_match_list[0].get_account(path.get_child())
 
+    def delete_account(self, path: AccountPath) -> bool:
+        if path.is_empty:
+            return False
+        if self.sub_accounts is None:
+            msg = f"account {self.name} is terminal and cannot have sub_accounts"
+            raise ValueError(msg)
+        sa_match_list = [
+            sa
+            for sa in self.sub_accounts
+            if sa.name.upper() == path.root_folder.upper()
+        ]
+        if len(sa_match_list) == 0:
+            msg= f"no match for {path.root_folder} in {self.name}"
+            raise ValueError(msg)
+        if len(sa_match_list) > 1:
+            msg= f"multiple matches for {path.root_folder} in {self.name}"
+            raise ValueError(msg)
+        sub_account = sa_match_list[0]
+        if path.is_singleton:
+            self.sub_accounts.remove(sub_account)
+            return True
+        return sub_account.delete_account(path.get_child())
+
     def get_account_structure(
             self,
             prefix: AccountPath | None = None,
@@ -126,7 +146,15 @@ class Account:
         ) -> Iterator[str]:
         acc_p, rest_struct = structure
         acc = self.get_account(acc_p.get_child())
-        prefix = f"{'  ' * level} {level}. {acc_p} : {acc.unit}"
+        account_name_colored = str(acc_p).split("/")
+        account_name_colored[-1] = (
+            f"{Color.GREEN}{account_name_colored[-1]}{Color.RESET}"
+        )
+        prefix = (
+            f"{'  ' * level} {Color.RED}{level}{Color.RESET}. "
+            f"{'/'.join(account_name_colored[(1 if level > 0 else 0):])}"
+            f" : {acc.unit}"
+        )
         if rest_struct is None:
             if acc.value is None:
                 msg="account is not terminal"
@@ -135,7 +163,10 @@ class Account:
             if unit is None:
                 msg=f"asset {acc.unit} not found in asset database"
                 raise ValueError(msg)
-            yield prefix + f" -> {unit.show_value(acc.value)}"
+            yield prefix + (
+                f" -> {Color.YELLOW if acc.value > 0 else Color.MAGENTA}"
+                f"{unit.show_value(acc.value)}{Color.RESET}"
+            )
         else:
             yield prefix
             for child in rest_struct:
@@ -302,7 +333,6 @@ class Account:
         if not isinstance(other, Account):
             msg="other is not an account"
             raise TypeError(msg)
-
         title = f"Account Differences for {memory + self.name}:\n"
         res = ""
         test_res = False
@@ -311,24 +341,24 @@ class Account:
         # Compare names
         if self.name != other.name:
             test_res = True
-            res += f"  Name: {self.name} -> {other.name}\n"
+            res += f"  {Color.YELLOW}Name: {self.name} -> {other.name}{Color.RESET}\n"
 
         # Compare types
         if self.is_terminal != other.is_terminal:
             test_res = True
             res += (
-                f"  Type: {'Terminal' if self.is_terminal else 'Folder'} -> "
-                f"{'Terminal' if other.is_terminal else 'Folder'}\n"
+                f"  {Color.YELLOW}Type: {'Terminal' if self.is_terminal else 'Folder'} "
+                f"-> {'Terminal' if other.is_terminal else 'Folder'}{Color.RESET}\n"
             )
 
         # Compare units
         if self.unit != other.unit:
             test_res = True
-            res += f"Unit: {self.unit} -> {other.unit}\n"
+            res += f"{Color.YELLOW}Unit: {self.unit} -> {other.unit}{Color.RESET}\n"
 
         if self.is_terminal and other.is_terminal and self.value != other.value:
             test_res = True
-            res += f"Value: {self.value} -> {other.value}\n"
+            res += f"{Color.YELLOW}Value: {self.value} -> {other.value}{Color.RESET}\n"
 
         if self.sub_accounts is not None and other.sub_accounts is not None:
             # Compare sub-accounts
@@ -350,12 +380,12 @@ class Account:
                         res += sub_acc_diff
                 else:
                     test_res = True
-                    res += f"Missing Sub-Account {name}\n"
+                    res += f"{Color.RED}Missing Sub-Account {name}{Color.RESET}\n"
 
             for name in other_sub_accounts:
                 if name not in self_sub_accounts:
                     test_res = True
-                    res += f"New Sub-Account {name}\n"
+                    res += f"{Color.GREEN}New Sub-Account {name}{Color.RESET}\n"
         if test_res:
             return title + res
         if test_res_2:

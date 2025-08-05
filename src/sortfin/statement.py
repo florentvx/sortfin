@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from .account import Account
 from .asset_database import AssetDatabase
+from .colors import Color
 from .fx_market import FxMarket
 
 if TYPE_CHECKING:
@@ -112,7 +113,7 @@ class Statement:
             )}"
         )
 
-    def diff(self, other: Statement) -> str:  # noqa: C901
+    def diff(self, other: Statement) -> str:
         if not isinstance(other, Statement):
             msg="The other object must be an instance of statement"
             raise TypeError(msg)
@@ -125,35 +126,36 @@ class Statement:
 
         # Compare account structures
         diff_acc_struct = self.account.diff(other.account)
-        if len(diff_acc_struct) > 0:
-            res += "Account Structure Differences:\n"
-            res +=diff_acc_struct
+        res += f"Account Structure Differences:\n {diff_acc_struct}\n" \
+            if len(diff_acc_struct) > 0 else ""
 
         # Compare FX markets
         res_fx = ""
-        for (k, v) in self.fx_market.quotes.items():
-            if k in other.fx_market.quotes:
-                if v != other.fx_market.quotes[k]:
-                    res_fx += (
-                        f"{k[0]}/{k[1]}: {v} "
-                        f"-> {other.fx_market.quotes[k]}\n"
-                    )
-            else:
+        for k in [
+            pair for pair in self.fx_market.quotes if pair in other.fx_market.quotes
+        ]:
+            if self.fx_market.quotes[k] != other.fx_market.quotes[k]:
                 res_fx += (
-                    f"{k[0]}/{k[1]}: {v} "
-                    "-> Not present in other statement\n"
+                    f"{k[0]}/{k[1]}: {self.fx_market.quotes[k]} "
+                    f"-> {other.fx_market.quotes[k]}\n"
                 )
+        for k in [
+            pair for pair in self.fx_market.quotes if pair not in other.fx_market.quotes
+        ]:
+            res_fx += (
+                f"{k[0]}/{k[1]}: {self.fx_market.quotes[k]} "
+                "-> Not present in other statement\n"
+            )
+        for k in [
+            pair for pair in other.fx_market.quotes if pair not in self.fx_market.quotes
+        ]:
+            res_fx += (
+                f"{k[0]}/{k[1]}: "
+                f"Not present in this statement\n"
+            )
+        res += f"FX Market Differences:\n{res_fx}" if len(res_fx) > 0 else ""
 
-        for (k, v) in other.fx_market.quotes.items():
-            if k not in self.fx_market.quotes:
-                res_fx += (
-                    f"{k[0]}/{k[1]}: "
-                    f"Not present in this statement -> {round(v,6)}\n"
-                )
-        if len(res_fx) > 0:
-            res += "FX Market Differences:\n"
-            res += res_fx
-        return res
+        return f"{Color.YELLOW}No differences found.{Color.RESET}" if res == "" else res
 
 
 def initialize_statement(unit: Asset) -> Statement:

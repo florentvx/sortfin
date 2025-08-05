@@ -10,6 +10,7 @@ import yaml
 from ..account import Account
 from ..account_path import AccountPath
 from ..asset import Asset
+from ..colors import Color
 from ..session import Session, initialize_session
 from ..to_yaml import from_list_to_session, from_session_to_list
 
@@ -188,6 +189,19 @@ def main(logger: logging.Logger|None = None) -> None:
 
 #endregion
 
+#region restore
+    restore_parser = subparser.add_parser(
+        "restore",
+        help="Restore the current working branch to the main branch.\n",
+    )
+    restore_parser.add_argument(
+        "--branch",
+        type=str,
+        default=Session.DEFAULT_BRANCH,
+        help="Branch to restore to (default: main branch)",
+    )
+#endregion
+
 #region add-date
 
     newdate_parser = subparser.add_parser(
@@ -231,13 +245,13 @@ def main(logger: logging.Logger|None = None) -> None:
     diff_parser.add_argument(
         "--branch_ref",
         type=str,
-        default=Session.DEFAULT_BRANCH,
+        default=None,
         help="Branch of the reference statement",
     )
     diff_parser.add_argument(
         "--branch",
         type=str,
-        default=Session.DEFAULT_WORKING_BRANCH,
+        default=None,
         help="Branch of the statement",
     )
 
@@ -301,6 +315,18 @@ def main(logger: logging.Logger|None = None) -> None:
         help="Type of the account (terminal or folder)",
     )
 
+#endregion
+
+#region delete-account
+    delete_account_parser = subparser.add_parser(
+        "delete-account",
+        help="Delete an account",
+    )
+    delete_account_parser.add_argument(
+        "account_path",
+        type=str,
+        help="Path to the account to delete",
+    )
 #endregion
 
 #region change-account-value
@@ -393,7 +419,7 @@ def main(logger: logging.Logger|None = None) -> None:
             logger.error(err_msg)
             return
         save_session_to_yaml(session, file_path)
-        save_session_info(args.file_name, Session.DEFAULT_BRANCH, initial_date, info_path)
+        save_session_info(args.file_name, Session.DEFAULT_WORKING_BRANCH, initial_date, info_path)
         msg=f"Session created and saved to {file_path}"
         logger.info(msg)
         return
@@ -426,7 +452,7 @@ def main(logger: logging.Logger|None = None) -> None:
 #region show-branches
 
     if args.command == "show-branches":
-        logger.info("Branches: " + "\n".join(session.branches()))
+        logger.info("Branches:\n" + "\n".join(session.branches()))
         return
     
 #endregion
@@ -434,12 +460,15 @@ def main(logger: logging.Logger|None = None) -> None:
 #region show-dates
 
     elif args.command == "show-dates":
-        date_list=list(map(dt.datetime.isoformat,session.dates(branch=args.branch)))
-        final_list = [d.split("T")[0] for d in date_list]
-        for i in range(1, len(final_list)):
-            if final_list[i] == final_list[i-1]:
-                final_list[i-1] = date_list[i-1]
-                final_list[i] = date_list[i]
+        datetime_list=list(map(dt.datetime.isoformat,session.dates(branch=args.branch)))
+        date_list = [d.split("T")[0] for d in datetime_list]
+        final_list = [date_list[0]]
+        for i in range(1, len(date_list)):
+            if date_list[i] == date_list[i-1]:
+                final_list[i-1] = datetime_list[i-1].split("+")[0]
+                final_list += [datetime_list[i].split("+")[0]]
+            else:
+                final_list += [date_list[i]]
         logger.info(f"Dates (of branch {args.branch})\n" + "\n".join(final_list))
         return
 
@@ -448,24 +477,60 @@ def main(logger: logging.Logger|None = None) -> None:
 #region checkout-date
 
     elif args.command == "checkout-date":
+        modified = False
         if args.date is None:
             args.date = dt.datetime.now(tz=dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
         _date = datetime_from_str(args.date, with_time=args.date.find(":") != -1)
-        info_date = session.get_date(
+        new_info_date = session.get_date(
             _date,
             branch=info_branch,
             is_exact_date=True,
             is_before=True,
         )
+        if not session.is_different(
+            info_date,
+            info_date,
+            Session.DEFAULT_WORKING_BRANCH,
+            Session.DEFAULT_BRANCH,
+        ):
+            session.delete_statement(
+                info_date,
+                Session.DEFAULT_WORKING_BRANCH,
+            )
+            msg=f"Deleted working branch at date {info_date} because it was identical to main branch"
+            logger.info(msg)
+            modified = True
+        
+        test=False
+        try:
+            session.get_date(
+            new_info_date,
+            branch=Session.DEFAULT_WORKING_BRANCH,
+            is_exact_date=True,)
+            test=True
+        except ValueError:
+            pass
+        if not test:
+            session.copy_statement(
+                new_info_date,
+                new_info_date,
+                branch_copy=Session.DEFAULT_BRANCH,
+                branch_paste=Session.DEFAULT_WORKING_BRANCH,
+            )
+            msg=f"Created working branch at date {new_info_date}"
+            logger.info(msg)
+            modified = True
+
         save_session_info(
             info_session,
-            Session.DEFAULT_BRANCH,
-            info_date,
+            Session.DEFAULT_WORKING_BRANCH,
+            new_info_date,
             info_path,
         )
-        msg=f"Checked out date {info_date} in branch {info_branch}"
+        msg=f"Checked out date {new_info_date} in branch {info_branch}"
         logger.info(msg)
-        return
+        if not modified:
+            return
 
 #endregion
 
@@ -473,7 +538,7 @@ def main(logger: logging.Logger|None = None) -> None:
 
     elif args.command == "push":
         if args.branch is None:
-            args.branch = Session.DEFAULT_MAIN_BRANCH
+            args.branch = Session.DEFAULT_BRANCH
         session.copy_statement(
             date_copy=info_date,
             date_paste=info_date,
@@ -487,22 +552,69 @@ def main(logger: logging.Logger|None = None) -> None:
 
 #endregion
 
+#region restore
+
+    elif args.command == "restore":
+        if args.branch is None:
+            args.branch = Session.DEFAULT_BRANCH
+        session.copy_statement(
+            date_copy=info_date,
+            date_paste=info_date,
+            branch_copy=args.branch,
+            branch_paste=Session.DEFAULT_WORKING_BRANCH,
+        )
+        modified = True
+        msg=f"Session pushed to branch {args.branch} at date {info_date}"
+        logger.info(msg)
+
+
+#endregion
+
 #region add-date
 
     elif args.command == "add-date":
-        new_date = dt.datetime.now(tz=dt.timezone.utc)
+        new_date = dt.datetime.now(tz=dt.timezone.utc).replace(microsecond=0)
         if args.date is not None:
             new_date = datetime_from_str(args.date, with_time=args.date.find(":") != -1)
-        session.copy_statement(
-            session.get_date(new_date, is_exact_date=True, is_before=True),
-            new_date,
-        )
-        session.copy_statement(
-            new_date,
-            new_date,
-            branch_copy=Session.DEFAULT_BRANCH,
-            branch_paste=Session.DEFAULT_WORKING_BRANCH,
-        )
+
+        session_closest_date_before = session.try_get_date(new_date, is_exact_date=True, is_before=True)
+        session_closest_date_after = session.try_get_date(new_date, is_exact_date=True, is_after=True)
+        if session_closest_date_before is None:
+            #special case when you are creating a date anterior to first session date
+            if session_closest_date_after is None:
+                raise ValueError(
+                    "No session date found before or after the new date. "
+                    "Please add a date before the new date first.",
+                )
+            if (session_closest_date_after - new_date).days > 1:
+                new_date=new_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            print(f"Copying statement from closest date after {session_closest_date_after} to new date {new_date}")
+            session.copy_statement(
+                session_closest_date_after,
+                new_date,
+            )
+        else:
+            if session_closest_date_after is None:
+                if (new_date - session_closest_date_before).days > 1:
+                    #when you are creating a date posterior to last session date
+                    new_date=new_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            else:
+                #when you are creating a date between two session dates
+                if (session_closest_date_after - new_date).days > 1 and \
+                    (new_date - session_closest_date_before).days > 1:
+                    new_date=new_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            print(f"Copying statement from closest date before {session_closest_date_after} to new date {new_date}")
+            session.copy_statement(
+                session_closest_date_before,
+                new_date,
+            )
+
+        # session.copy_statement(
+        #     new_date,
+        #     new_date,
+        #     branch_copy=Session.DEFAULT_BRANCH,
+        #     branch_paste=Session.DEFAULT_WORKING_BRANCH,
+        # )
         modified = True
         msg=f"New date {new_date} added to session"
         logger.info(msg)
@@ -540,7 +652,11 @@ def main(logger: logging.Logger|None = None) -> None:
         branch_diff = args.branch if args.branch is not None else (
             Session.DEFAULT_WORKING_BRANCH if diff_dateref == diff_date else Session.DEFAULT_BRANCH
         )
-
+        logging.info((
+            f"Showing Diff. between:\n"
+            f" - {diff_dateref} {Color.GREEN}{branch_ref}{Color.RESET}\n"
+            f" - {diff_date} {Color.GREEN}{branch_diff}{Color.RESET}"
+        ))
         diff_result = session.diff(diff_dateref, diff_date, branch_ref, branch_diff)
         logger.info(diff_result)
         return
@@ -550,12 +666,7 @@ def main(logger: logging.Logger|None = None) -> None:
 #region print-structure
 
     elif args.command == "print-structure":
-        logger.info(
-            session.print_structure(
-                date=info_date, 
-                branch=args.branch,
-            ),
-        )
+        print(session.print_structure(date=info_date, branch=args.branch))
         return
 
 #endregion
@@ -613,6 +724,34 @@ def main(logger: logging.Logger|None = None) -> None:
 
 #endregion
 
+#region delete-account
+    elif args.command == "delete-account":
+        if not args.account_path:
+            logger.error(
+                "Please provide the account path using --account_path",
+            )
+            return
+        account_to_delete = session.get_account(
+            info_date,
+            Session.DEFAULT_WORKING_BRANCH,
+            AccountPath(args.account_path),
+        )
+        if account_to_delete.is_terminal:
+            if account_to_delete.value != 0.0:
+                msg=f"Account (terminal) {args.account_path} has a non-zero value ({account_to_delete.value}) and cannot be deleted"
+                logger.info(msg)
+                return
+        else:
+            if len(account_to_delete.sub_accounts) > 0:
+                msg=f"Account (folder) {args.account_path} is not empty ({len(account_to_delete.sub_accounts)} sub-accounts detected) and cannot be deleted"
+                logger.info(msg)
+                return
+        modified = session.delete_account(info_date, Session.DEFAULT_WORKING_BRANCH, AccountPath(args.account_path))
+        if not modified:
+            msg=f"Something went wrong while deleting account {args.account_path}"
+            logger.info(msg)
+            return
+
 #region change-account-value
 
     elif args.command == "change-account-value":
@@ -669,14 +808,17 @@ def main(logger: logging.Logger|None = None) -> None:
             msg=f"Asset {asset_versus_input} not found in the asset database"
             raise ValueError(msg)
         session.asset_db.add_asset(new_asset)
-        if not inv_rate:
-            session.get_fxmarket(branch=Session.DEFAULT_WORKING_BRANCH).add_quote(
-                session.asset_db, new_asset.name, asset_versus.name, args.rate,
-            )
-        else:
-            session.get_fxmarket(branch=Session.DEFAULT_WORKING_BRANCH).add_quote(
-                session.asset_db, asset_versus.name, new_asset.name, args.rate,
-            )
+        fx_mkt_list = session.get_fxmarket_list(date=info_date, branch=Session.DEFAULT_BRANCH) + \
+            session.get_fxmarket_list(date=info_date, branch=Session.DEFAULT_WORKING_BRANCH)
+        for fx_mkt in fx_mkt_list:
+            if not inv_rate:
+                fx_mkt.add_quote(
+                    session.asset_db, new_asset.name, asset_versus.name, args.rate,
+                )
+            else:
+                fx_mkt.add_quote(
+                    session.asset_db, asset_versus.name, new_asset.name, args.rate,
+                )
         modified = True
 
 #endregion
@@ -708,6 +850,7 @@ def main(logger: logging.Logger|None = None) -> None:
         save_session_to_yaml(session, file_path)
         msg=f"Session modified and saved to {file_path}"
         logger.info(msg)
+    return
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

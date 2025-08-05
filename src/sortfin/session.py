@@ -69,17 +69,36 @@ class Session:
         if is_exact_date and (date, branch) in self.data:
                 return date
         if is_before:
-            statement_date_list = [dte for dte, brch in self.data if dte < date]
+            statement_date_list = [dte for (dte, brch) in self.data if dte < date]
             if len(statement_date_list) == 0:
                 msg = f"No statement found before or on {date}"
                 raise ValueError(msg)
             return max(statement_date_list)
         assert is_after # noqa: S101
-        statement_date_list = [dte for dte in self.data if dte > date]
+        statement_date_list = [dte for (dte, brnch) in self.data if dte > date]
         if len(statement_date_list) == 0:
             msg = f"No statement found after or on {date}"
             raise ValueError(msg)
         return min(statement_date_list)
+
+    def try_get_date(
+            self,
+            date: dt.datetime|None = None,
+            branch: str = DEFAULT_BRANCH,
+            *,
+            is_exact_date: bool = False,
+            is_before: bool = False,
+            is_after: bool = False,
+        ) -> dt.datetime|None:
+        try:
+            return self.get_date(
+                date, branch,
+                is_exact_date=is_exact_date,
+                is_before=is_before,
+                is_after=is_after,
+            )
+        except ValueError:
+            return None
 
     def get_statement(
             self,
@@ -102,6 +121,17 @@ class Session:
                 branch,
             )
         ]
+
+    def delete_statement(
+            self,
+            date: dt.datetime,
+            branch: str = DEFAULT_BRANCH,
+    ) -> None:
+        """Delete a statement for a specific date and branch."""
+        if (date, branch) not in self.data:
+            msg = f"Statement for date {date} and branch {branch} not found"
+            raise ValueError(msg)
+        del self.data[(date, branch)]
 
     def copy_session(self) -> Statement:
         state = Session(
@@ -134,12 +164,29 @@ class Session:
             branch2: str = DEFAULT_BRANCH,
         ) -> str:
         """Get the difference between two statements."""
-        if (date1, branch1) not in self.data or (date2, branch2) not in self.data:
-            msg = "Both dates must be present in session data"
+        if (date1, branch1) not in self.data:
+            msg = f"date1,branch1 must be present in session data: {date1}, {branch1}"
+            raise ValueError(msg)
+        if (date2, branch2) not in self.data:
+            msg = f"date2,branch2 must be present in session data: {date2}, {branch2}"
             raise ValueError(msg)
         statement1 = self.data[(date1, branch1)]
         statement2 = self.data[(date2, branch2)]
         return statement1.diff(statement2)
+
+    def is_different(
+            self,
+            date1: dt.datetime,
+            date2: dt.datetime,
+            branch1: str = DEFAULT_BRANCH,
+            branch2: str = DEFAULT_BRANCH,
+        ) -> bool:
+        """Check if two statements are different."""
+        return self.diff(
+            date1, date2,
+            branch1=branch1,
+            branch2=branch2,
+        ) != "No differences found."
 
     def print_structure(
             self,
@@ -150,7 +197,7 @@ class Session:
         statement=self.get_statement(date, branch)
         return (
             "Session:\n"
-            f"Date: {statement.date.strftime("%d/%m/%Y")}\n"
+            f"Date: {statement.date.strftime('%d/%m/%Y')}\n"
             f"Branch: {branch}\n"
             "Statement:\n"
             f"{statement.print_structure(self.asset_db)}"
@@ -184,6 +231,16 @@ class Session:
         statement = self.get_statement(date, branch)
         return statement.account.get_account(folder_path)
 
+    def delete_account(
+            self,
+            date: dt.datetime,
+            branch: str,
+            folder_path: AccountPath,
+    ) -> bool:
+        """Delete an account at the specified folder path."""
+        statement = self.get_statement(date, branch)
+        return statement.account.delete_account(folder_path)
+
     def get_fxmarket(
             self,
             date: dt.datetime|None = None,
@@ -192,6 +249,19 @@ class Session:
         """Get the FX market for the current statement."""
         statement = self.get_statement(date, branch)
         return statement.fx_market
+
+    def get_fxmarket_list(
+            self,
+            date: dt.datetime|None = None,
+            branch: str = DEFAULT_BRANCH,
+    ) -> list[FxMarket]:
+        """Get the list of FX market entries for the current statement."""
+        start_date = self.get_date(date, branch, is_exact_date=True, is_after=True)
+        return [
+            self.get_statement(date, branch).fx_market
+            for date in self.dates(branch)
+            if date >= start_date
+        ]
 
     def add_account(
             self,
