@@ -6,6 +6,7 @@ import pytest
 
 from src.sortfin.account import Account
 from src.sortfin.account_path import AccountPath
+from src.sortfin.colors import Color
 
 from .test_asset import EUR, JPY
 from .test_assetdb import ASSET_DB
@@ -88,11 +89,14 @@ class TestAccount(unittest.TestCase):
 
     def test_get_account_structure(self) -> None:
         expected_structure = (
-            "Account Structure:\n"
-            " 0. acc2 : EUR\n   1. acc2/sa0 : EUR -> € 102\n   1. acc2/sa1 : EUR\n"
-            "     2. acc2/sa1/sa00 : EUR -> € 52\n     2. acc2/sa1/sa01 : EUR -> € 12\n"
-            "   1. acc2/sa3 : JPY\n"
-            "     2. acc2/sa3/x : JPY -> ¥ 10,0000\n     2. acc2/sa3/y : JPY\n"
+            f"Account Structure:\n {Color.RED}0{Color.RESET}. {Color.GREEN}acc2{Color.RESET} : EUR\n"  # noqa: E501
+            f"   {Color.RED}1{Color.RESET}. {Color.GREEN}sa0{Color.RESET} : EUR -> {Color.YELLOW}€ 102{Color.RESET}\n"  # noqa: E501
+            f"   {Color.RED}1{Color.RESET}. {Color.GREEN}sa1{Color.RESET} : EUR\n"
+            f"     {Color.RED}2{Color.RESET}. sa1/{Color.GREEN}sa00{Color.RESET} : EUR -> {Color.YELLOW}€ 52{Color.RESET}\n"  # noqa: E501
+            f"     {Color.RED}2{Color.RESET}. sa1/{Color.GREEN}sa01{Color.RESET} : EUR -> {Color.YELLOW}€ 12{Color.RESET}\n"  # noqa: E501
+            f"   {Color.RED}1{Color.RESET}. {Color.GREEN}sa3{Color.RESET} : JPY\n"
+            f"     {Color.RED}2{Color.RESET}. sa3/{Color.GREEN}x{Color.RESET} : JPY -> {Color.YELLOW}¥ 10,0000{Color.RESET}\n"  # noqa: E501
+            f"     {Color.RED}2{Color.RESET}. sa3/{Color.GREEN}y{Color.RESET} : JPY\n"
         )
         assert ACC_2.print_structure(ASSET_DB) == expected_structure #noqa: S101
 

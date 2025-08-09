@@ -4,6 +4,7 @@ import unittest
 import pytest
 
 from src.sortfin import Account, AccountPath, Asset, Statement
+from src.sortfin.colors import Color
 
 from .test_asset import EUR, GBP, JPY, USD
 from .test_assetdb import ASSET_DB
@@ -112,9 +113,9 @@ class TestStatement(unittest.TestCase):
         log_2 = self.my_state.diff(self.my_state2)
         bmk_2 = (
             "Date: 2025-01-05 -> 2025-02-05\n"
-            "Account Structure Differences:\n"
+            "Account Structure Differences:\n "
             "Account Differences for root/europe/my_bank:\n"
-            "Value: 1000 -> 100\n"
+            f"{Color.YELLOW}Value: 1000 -> 100{Color.RESET}\n\n"
         )
         if log_2 != bmk_2:
             assert log_2 == bmk_2 # noqa: S101
@@ -122,9 +123,10 @@ class TestStatement(unittest.TestCase):
         log_3 = self.my_state.diff(self.my_state3)
         bmk_3 = (
             "Date: 2025-01-05 -> 2025-03-05\n"
-            "Account Structure Differences:\n"
+            "Account Structure Differences:\n "
             "Account Differences for root/usa/my_investment:\n"
-            "Unit: USD -> JPY\nValue: 145600.2 -> 123456\n"
+            f"{Color.YELLOW}Unit: USD -> JPY{Color.RESET}\n"
+            f"{Color.YELLOW}Value: 145600.2 -> 123456{Color.RESET}\n\n"
         )
         if log_3 != bmk_3:
             assert log_3 == bmk_3 # noqa: S101
@@ -132,11 +134,11 @@ class TestStatement(unittest.TestCase):
         log_4 = self.my_state.diff(self.my_state4)
         bmk_4 = (
             "Date: 2025-01-05 -> 2025-04-05\n"
-            "Account Structure Differences:\n"
+            "Account Structure Differences:\n "
             "Account Differences for root/europe:\n"
-            "Unit: EUR -> BTC\n"
+            f"{Color.YELLOW}Unit: EUR -> BTC{Color.RESET}\n\n"
             "FX Market Differences:\n"
-            "BTC/JPY: Not present in this statement -> 140000\n"
+            "BTC/JPY: Not present in this statement\n"
         )
         if log_4 != bmk_4:
             assert log_4 == bmk_4 # noqa: S101

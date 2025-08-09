@@ -12,20 +12,13 @@ from ..account_path import AccountPath
 from ..asset import Asset
 from ..colors import Color
 from ..session import Session, initialize_session
-from ..to_yaml import from_list_to_session, from_session_to_list
+
+from ..cmd import load_session_from_yaml, save_session_to_yaml, \
+                    show_branches, show_dates, \
+                    checkout_date, delete_date
 
 
-def load_session_from_yaml(file_path: Path) -> Session:
-    """Load a session from a YAML file."""
-    with Path.open(file_path) as file:
-        session_dict = yaml.safe_load(file)
-    return from_list_to_session(session_dict)
 
-def save_session_to_yaml(session: Session, file_path: Path) -> None:
-    """Save a session to a YAML file."""
-    session_dict = from_session_to_list(session)
-    with Path.open(file_path, "w") as file:
-        yaml.safe_dump(session_dict, file)
 
 def datetime_from_str(date_str: str, with_time: bool) -> dt.datetime:
     format_str="%Y-%m-%dT%H:%M:%S" if with_time else "%Y-%m-%d"
@@ -78,7 +71,7 @@ def main(logger: logging.Logger|None = None) -> None:
             info_path.parent.mkdir()
         info_path.touch()
         #TODO what happens if file empty??
-        print("No info file found. Creating a new one.")
+        logging.error("No info file found. Creating a new one.\n")
         
     parser = argparse.ArgumentParser(description="Accounting Library CLI")
     subparser = parser.add_subparsers(
@@ -213,6 +206,26 @@ def main(logger: logging.Logger|None = None) -> None:
         type=str,
         default=None,
         help="Date to create in the session (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS) (default: now utc)",
+    )
+
+#endregion
+
+#region delete-date
+
+    del_date_parser = subparser.add_parser(
+        "delete-date",
+        help="Delete a date from the session",
+    )
+    del_date_parser.add_argument(
+        "date",
+        type=str,
+        help="Date to delete from the session (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
+    )
+    del_date_parser.add_argument(
+        "--branch",
+        type=str,
+        default=Session.DEFAULT_BRANCH,
+        help="Branch of the date to delete (default: main branch)",
     )
 
 #endregion
@@ -402,7 +415,7 @@ def main(logger: logging.Logger|None = None) -> None:
         return
     
 
-#region create
+#region create/change sessions
 
     if args.command == "create":
         initial_date = dt.datetime.now(tz=dt.timezone.utc)
@@ -424,10 +437,6 @@ def main(logger: logging.Logger|None = None) -> None:
         logger.info(msg)
         return
     
-#endregion
-
-#region change-session
-
     if args.command == "change-session":
         file_path = Path(args.file_name + ".yaml")
         if not file_path.exists():
@@ -442,99 +451,38 @@ def main(logger: logging.Logger|None = None) -> None:
             info_path,
         )
         return
-    
+
 #endregion
 
     file_path = Path(info_session + ".yaml")
     session : Session = load_session_from_yaml(file_path)
     modified = False
 
-#region show-branches
-
     if args.command == "show-branches":
-        logger.info("Branches:\n" + "\n".join(session.branches()))
+        logger.info(show_branches(logger))
         return
-    
-#endregion
-
-#region show-dates
 
     elif args.command == "show-dates":
-        datetime_list=list(map(dt.datetime.isoformat,session.dates(branch=args.branch)))
-        date_list = [d.split("T")[0] for d in datetime_list]
-        final_list = [date_list[0]]
-        for i in range(1, len(date_list)):
-            if date_list[i] == date_list[i-1]:
-                final_list[i-1] = datetime_list[i-1].split("+")[0]
-                final_list += [datetime_list[i].split("+")[0]]
-            else:
-                final_list += [date_list[i]]
-        logger.info(f"Dates (of branch {args.branch})\n" + "\n".join(final_list))
+        logger.info(show_dates(session, args.branch))
         return
-
-#endregion
-
-#region checkout-date
 
     elif args.command == "checkout-date":
         modified = False
         if args.date is None:
             args.date = dt.datetime.now(tz=dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
         _date = datetime_from_str(args.date, with_time=args.date.find(":") != -1)
-        new_info_date = session.get_date(
-            _date,
-            branch=info_branch,
-            is_exact_date=True,
-            is_before=True,
+        modified, new_info_branch, new_info_date, msg = checkout_date(
+            session, 
+            info_branch, info_date,
+            Session.DEFAULT_WORKING_BRANCH, _date,
         )
-        if not session.is_different(
-            info_date,
-            info_date,
-            Session.DEFAULT_WORKING_BRANCH,
-            Session.DEFAULT_BRANCH,
-        ):
-            session.delete_statement(
-                info_date,
-                Session.DEFAULT_WORKING_BRANCH,
-            )
-            msg=f"Deleted working branch at date {info_date} because it was identical to main branch"
-            logger.info(msg)
-            modified = True
-        
-        test=False
-        try:
-            session.get_date(
-            new_info_date,
-            branch=Session.DEFAULT_WORKING_BRANCH,
-            is_exact_date=True,)
-            test=True
-        except ValueError:
-            pass
-        if not test:
-            session.copy_statement(
-                new_info_date,
-                new_info_date,
-                branch_copy=Session.DEFAULT_BRANCH,
-                branch_paste=Session.DEFAULT_WORKING_BRANCH,
-            )
-            msg=f"Created working branch at date {new_info_date}"
-            logger.info(msg)
-            modified = True
-
+        logger.info(msg)
         save_session_info(
             info_session,
-            Session.DEFAULT_WORKING_BRANCH,
+            new_info_branch,
             new_info_date,
             info_path,
         )
-        msg=f"Checked out date {new_info_date} in branch {info_branch}"
-        logger.info(msg)
-        if not modified:
-            return
-
-#endregion
-
-#region push
 
     elif args.command == "push":
         if args.branch is None:
@@ -546,13 +494,8 @@ def main(logger: logging.Logger|None = None) -> None:
             branch_paste=args.branch,
         )
         modified = True
-        msg=f"Session pushed to branch {args.branch} at date {info_date}"
+        msg=f"Session pushed to branch {args.branch} at date {info_date}.\n"
         logger.info(msg)
-
-
-#endregion
-
-#region restore
 
     elif args.command == "restore":
         if args.branch is None:
@@ -567,9 +510,6 @@ def main(logger: logging.Logger|None = None) -> None:
         msg=f"Session pushed to branch {args.branch} at date {info_date}"
         logger.info(msg)
 
-
-#endregion
-
 #region add-date
 
     elif args.command == "add-date":
@@ -577,18 +517,18 @@ def main(logger: logging.Logger|None = None) -> None:
         if args.date is not None:
             new_date = datetime_from_str(args.date, with_time=args.date.find(":") != -1)
 
-        session_closest_date_before = session.try_get_date(new_date, is_exact_date=True, is_before=True)
-        session_closest_date_after = session.try_get_date(new_date, is_exact_date=True, is_after=True)
+        session_closest_date_before, _ = session.try_get_date(new_date, is_exact_date=True, is_before=True)
+        session_closest_date_after, _ = session.try_get_date(new_date, is_exact_date=True, is_after=True)
         if session_closest_date_before is None:
             #special case when you are creating a date anterior to first session date
             if session_closest_date_after is None:
                 raise ValueError(
                     "No session date found before or after the new date. "
-                    "Please add a date before the new date first.",
+                    "Please add a date before the new date first.\n",
                 )
             if (session_closest_date_after - new_date).days > 1:
                 new_date=new_date.replace(hour=0, minute=0, second=0, microsecond=0)
-            print(f"Copying statement from closest date after {session_closest_date_after} to new date {new_date}")
+            logger.info(f"Copying statement from closest date after {session_closest_date_after} to new date {new_date}\n")
             session.copy_statement(
                 session_closest_date_after,
                 new_date,
@@ -603,7 +543,7 @@ def main(logger: logging.Logger|None = None) -> None:
                 if (session_closest_date_after - new_date).days > 1 and \
                     (new_date - session_closest_date_before).days > 1:
                     new_date=new_date.replace(hour=0, minute=0, second=0, microsecond=0)
-            print(f"Copying statement from closest date before {session_closest_date_after} to new date {new_date}")
+            logger.info(f"Copying statement from closest date before {session_closest_date_after} to new date {new_date}\n")
             session.copy_statement(
                 session_closest_date_before,
                 new_date,
@@ -620,6 +560,13 @@ def main(logger: logging.Logger|None = None) -> None:
         logger.info(msg)
 
 #endregion
+
+    elif args.command == "delete-date":
+        if args.date is None:
+            raise ValueError("Please provide a date to delete.\n")
+        date_to_delete_input = datetime_from_str(args.date, with_time=args.date.find(":") != -1)
+        modified, msg = delete_date(session, args.branch, info_date, date_to_delete_input)
+        logger.info(msg)
 
 #region diff
 
@@ -652,7 +599,7 @@ def main(logger: logging.Logger|None = None) -> None:
         branch_diff = args.branch if args.branch is not None else (
             Session.DEFAULT_WORKING_BRANCH if diff_dateref == diff_date else Session.DEFAULT_BRANCH
         )
-        logging.info((
+        logger.info((
             f"Showing Diff. between:\n"
             f" - {diff_dateref} {Color.GREEN}{branch_ref}{Color.RESET}\n"
             f" - {diff_date} {Color.GREEN}{branch_diff}{Color.RESET}"
@@ -663,15 +610,10 @@ def main(logger: logging.Logger|None = None) -> None:
     
 #endregion
 
-#region print-structure
-
     elif args.command == "print-structure":
-        print(session.print_structure(date=info_date, branch=args.branch))
+        logger.info(session.print_structure(date=info_date, branch=args.branch))
         return
 
-#endregion
-
-#region print-summary
 
     elif args.command == "print-summary":
         logger.info(
@@ -682,8 +624,6 @@ def main(logger: logging.Logger|None = None) -> None:
             ),
         )
         return
-
-#endregion
 
 #region add-account
 
@@ -848,7 +788,7 @@ def main(logger: logging.Logger|None = None) -> None:
 
     if modified:
         save_session_to_yaml(session, file_path)
-        msg=f"Session modified and saved to {file_path}"
+        msg=f"Session modified and saved to {file_path}.\n"
         logger.info(msg)
     return
 
@@ -856,7 +796,3 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     main(logger)
-
-
-#TODO: Checkout Date!!!
-# -> Delete working branch if moving from date and statements are identical

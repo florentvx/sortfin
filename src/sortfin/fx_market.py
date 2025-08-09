@@ -18,6 +18,9 @@ class FxMarket:
             res += f"{t[0]}/{t[1]} : {round(v,4)}\n"
         return res
 
+    def __hash__(self) -> int:
+        return self.quotes.__hash__() + self.secondary_quotes.__hash__()
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, FxMarket):
             return False

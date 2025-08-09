@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from .account import Account
 from .asset_database import AssetDatabase
+from .colors import Color
 from .fx_market import FxMarket
 from .statement import Statement
 
@@ -41,7 +42,7 @@ class Session:
         branches.sort()
         return branches
 
-    def get_date(
+    def get_date(  # noqa: C901
             self,
             date: dt.datetime|None = None,
             branch: str = DEFAULT_BRANCH,
@@ -63,19 +64,32 @@ class Session:
             msg = "Must specify at least one of is_exact_date, is_before, or is_after"
             raise ValueError(msg)
         is_exact_date_only = is_exact_date and not (is_before or is_after)
-        if (date, branch) not in self.data and is_exact_date_only:
-            msg = f"Date {date} not found in session data"
+        if is_exact_date_only and (date, branch) not in self.data:
+            closest_date = [
+                dte for (dte, brch) in self.data
+                if dte.date() == date.date() and brch == branch
+            ]
+            msg = f"Date {date} not found in session data.\n"
+            if len(closest_date) == 0:
+                raise ValueError(msg)
+            closest_date = sorted(
+                closest_date,
+                key=lambda d: abs((date - d).total_seconds()),
+            )
+            if abs(closest_date[0] - date).total_seconds() < 120:  # noqa: PLR2004
+                return closest_date[0]
+            msg += f"Closest date is {closest_date[0].replace(microsecond=0)}.\n"
             raise ValueError(msg)
         if is_exact_date and (date, branch) in self.data:
-                return date
+            return date
         if is_before:
-            statement_date_list = [dte for (dte, brch) in self.data if dte < date]
+            statement_date_list = [dte for (dte, _) in self.data if dte < date]
             if len(statement_date_list) == 0:
                 msg = f"No statement found before or on {date}"
                 raise ValueError(msg)
             return max(statement_date_list)
         assert is_after # noqa: S101
-        statement_date_list = [dte for (dte, brnch) in self.data if dte > date]
+        statement_date_list = [dte for (dte, _) in self.data if dte > date]
         if len(statement_date_list) == 0:
             msg = f"No statement found after or on {date}"
             raise ValueError(msg)
@@ -89,16 +103,16 @@ class Session:
             is_exact_date: bool = False,
             is_before: bool = False,
             is_after: bool = False,
-        ) -> dt.datetime|None:
+        ) -> tuple[dt.datetime|None, str|None]:
         try:
             return self.get_date(
                 date, branch,
                 is_exact_date=is_exact_date,
                 is_before=is_before,
                 is_after=is_after,
-            )
-        except ValueError:
-            return None
+            ), ""
+        except ValueError as e:
+            return None, str(e)
 
     def get_statement(
             self,
@@ -186,7 +200,7 @@ class Session:
             date1, date2,
             branch1=branch1,
             branch2=branch2,
-        ) != "No differences found."
+        ) != f"{Color.YELLOW}No differences found.{Color.RESET}"
 
     def print_structure(
             self,
