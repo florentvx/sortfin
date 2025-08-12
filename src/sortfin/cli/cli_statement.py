@@ -14,8 +14,8 @@ from ..colors import Color
 from ..session import Session, initialize_session
 
 from ..cmd import load_session_from_yaml, save_session_to_yaml, \
-                    show_branches, show_dates, \
-                    checkout_date, delete_date
+                    show_branches, show_dates, show_diff, \
+                    add_asset, change_account_value, change_fx_quote, checkout_date, delete_date
 
 
 
@@ -387,6 +387,12 @@ def main(logger: logging.Logger|None = None) -> None:
         type=float,
         help="Rate for the new asset and existing asset pair",
     )
+    add_asset_parser.add_argument(
+        "--decimal",
+        type=int,
+        default=2,
+        help="Number of decimal places for the new asset (default: 2)",
+    )
 
 #endregion
 
@@ -408,6 +414,26 @@ def main(logger: logging.Logger|None = None) -> None:
     )
     
 #endregion
+
+#region change-fx-quote
+
+    change_fx_quote_parser = subparser.add_parser(
+        "change-fx-quote",
+        help="Change the FX quote for a given pair of assets in the session",
+    )
+    change_fx_quote_parser.add_argument(
+        "asset_pair",
+        type=str,
+        help="asset1/asset2 pair to change the quote for",
+    )
+    change_fx_quote_parser.add_argument(
+        "new_quote",
+        type=float,
+        help="New quote for the asset pair",
+    )
+
+#endregion
+
 
     args = parser.parse_args()
     if info_session == "<UNSET>" and args.command not in ["create", "checkout"]:
@@ -459,7 +485,7 @@ def main(logger: logging.Logger|None = None) -> None:
     modified = False
 
     if args.command == "show-branches":
-        logger.info(show_branches(logger))
+        logger.info(show_branches(session))
         return
 
     elif args.command == "show-dates":
@@ -568,47 +594,33 @@ def main(logger: logging.Logger|None = None) -> None:
         modified, msg = delete_date(session, args.branch, info_date, date_to_delete_input)
         logger.info(msg)
 
-#region diff
-
     elif args.command == "diff":
-        my_session_dates = session.dates()
-        if len(my_session_dates) < 2:
-            raise ValueError(
-                "Not enough dates in the session to perform a diff. "
-                "Please add at least two statements.",
-            )
-        diff_date = info_date
+        branch_ref = args.branch_ref if args.branch_ref is not None else Session.DEFAULT_BRANCH
         diff_dateref = info_date
-        if args.date is not None:
-            diff_date=datetime_from_str(args.date, with_time=args.date.find(":") != -1)
-            diff_date=session.get_date(
-                diff_date,
-                branch=Session.DEFAULT_WORKING_BRANCH,
-                is_exact_date=True,
-                is_before=True,
-            )
         if args.date_ref is not None:
             diff_dateref=datetime_from_str(args.date_ref, with_time=args.date_ref.find(":") != -1)
             diff_dateref = session.get_date(
                 diff_dateref,
-                branch=Session.DEFAULT_WORKING_BRANCH,
+                branch=branch_ref,
                 is_exact_date=True,
                 is_before=True,
             )
-        branch_ref = args.branch_ref if args.branch_ref is not None else Session.DEFAULT_BRANCH
-        branch_diff = args.branch if args.branch is not None else (
-            Session.DEFAULT_WORKING_BRANCH if diff_dateref == diff_date else Session.DEFAULT_BRANCH
+        branch_diff = args.branch if args.branch is not None else Session.DEFAULT_WORKING_BRANCH
+        diff_date = info_date
+        if args.date is not None:
+            diff_date=datetime_from_str(args.date, with_time=args.date.find(":") != -1)
+            diff_date=session.get_date(
+                diff_date,
+                branch=branch_diff,
+                is_exact_date=True,
+                is_before=True,
+            )
+        logger.info(
+            show_diff(
+                session, branch_ref, diff_dateref, branch_diff, diff_date
+            )
         )
-        logger.info((
-            f"Showing Diff. between:\n"
-            f" - {diff_dateref} {Color.GREEN}{branch_ref}{Color.RESET}\n"
-            f" - {diff_date} {Color.GREEN}{branch_diff}{Color.RESET}"
-        ))
-        diff_result = session.diff(diff_dateref, diff_date, branch_ref, branch_diff)
-        logger.info(diff_result)
         return
-    
-#endregion
 
     elif args.command == "print-structure":
         logger.info(session.print_structure(date=info_date, branch=args.branch))
@@ -619,7 +631,7 @@ def main(logger: logging.Logger|None = None) -> None:
         logger.info(
             session.print_summary(
                 date=info_date,
-                branch=Session.DEFAULT_WORKING_BRANCH,
+                branch=args.branch,
                 acc_path=AccountPath(args.account_path)
             ),
         )
@@ -692,30 +704,17 @@ def main(logger: logging.Logger|None = None) -> None:
             logger.info(msg)
             return
 
-#region change-account-value
+#endregion
 
     elif args.command == "change-account-value":
-        if not args.account_path or args.account_value is None:
-            logger.error(
-                "Please provide the account path and new value"
-                " using --account_path and --account_value",
-            )
-            return
-        msg=f"Account Value: {args.account_value}"
-        logger.info(msg)
-        account_to_modify = session.get_account(
+        modified, msg = change_account_value(
+            session,
+            info_branch,
             info_date,
-            Session.DEFAULT_WORKING_BRANCH,
-            AccountPath(args.account_path),
+            args.account_path,
+            args.account_value,
         )
-        if not account_to_modify.is_terminal:
-            msg=f"Account {args.account_path} is not a terminal account"
-            logger.info(msg)
-            return
-        account_to_modify.value = args.account_value
-        modified = True
-
-#endregion
+        logger.info(msg)
 
 #region add-asset
 
@@ -727,39 +726,50 @@ def main(logger: logging.Logger|None = None) -> None:
                 " using --asset_name, --asset_symbol, --asset_versus, and --rate",
             )
             return
-        new_asset = Asset(args.asset_name, args.asset_symbol)
-        asset_pair = args.asset_pair.split("/")
-        if len(asset_pair) != 2: #noqa: PLR2004
-            logger.error(
-                "Please provide the existing asset pair in the format"
-                " `asset1/asset2`",
-            )
-            return
-        asset_versus_input = asset_pair[1]
-        inv_rate = False
-        if asset_versus_input == args.asset_name:
-            asset_versus_input = asset_pair[0]
-            inv_rate = True
-        elif asset_pair[0] != args.asset_name:
-            msg="Asset pair does not match the new asset"
-            raise ValueError(msg)
-        asset_versus = session.asset_db.get_asset_from_name(asset_versus_input)
-        if asset_versus is None:
-            msg=f"Asset {asset_versus_input} not found in the asset database"
-            raise ValueError(msg)
-        session.asset_db.add_asset(new_asset)
-        fx_mkt_list = session.get_fxmarket_list(date=info_date, branch=Session.DEFAULT_BRANCH) + \
-            session.get_fxmarket_list(date=info_date, branch=Session.DEFAULT_WORKING_BRANCH)
-        for fx_mkt in fx_mkt_list:
-            if not inv_rate:
-                fx_mkt.add_quote(
-                    session.asset_db, new_asset.name, asset_versus.name, args.rate,
-                )
-            else:
-                fx_mkt.add_quote(
-                    session.asset_db, asset_versus.name, new_asset.name, args.rate,
-                )
-        modified = True
+        modified, msg = add_asset(
+            session,
+            info_branch,
+            info_date,
+            args.asset_name,
+            args.asset_symbol,
+            args.asset_pair,
+            args.rate,
+            args.decimal,
+        )
+        logger.info(msg)
+        # new_asset = Asset(args.asset_name, args.asset_symbol)
+        # asset_pair = args.asset_pair.split("/")
+        # if len(asset_pair) != 2: #noqa: PLR2004
+        #     logger.error(
+        #         "Please provide the existing asset pair in the format"
+        #         " `asset1/asset2`",
+        #     )
+        #     return
+        # asset_versus_input = asset_pair[1]
+        # inv_rate = False
+        # if asset_versus_input == args.asset_name:
+        #     asset_versus_input = asset_pair[0]
+        #     inv_rate = True
+        # elif asset_pair[0] != args.asset_name:
+        #     msg="Asset pair does not match the new asset"
+        #     raise ValueError(msg)
+        # asset_versus = session.asset_db.get_asset_from_name(asset_versus_input)
+        # if asset_versus is None:
+        #     msg=f"Asset {asset_versus_input} not found in the asset database"
+        #     raise ValueError(msg)
+        # session.asset_db.add_asset(new_asset)
+        # fx_mkt_list = session.get_fxmarket_list(date=info_date, branch=Session.DEFAULT_BRANCH) + \
+        #     session.get_fxmarket_list(date=info_date, branch=Session.DEFAULT_WORKING_BRANCH)
+        # for fx_mkt in fx_mkt_list:
+        #     if not inv_rate:
+        #         fx_mkt.add_quote(
+        #             session.asset_db, new_asset.name, asset_versus.name, args.rate,
+        #         )
+        #     else:
+        #         fx_mkt.add_quote(
+        #             session.asset_db, asset_versus.name, new_asset.name, args.rate,
+        #         )
+        # modified = True
 
 #endregion
 
@@ -780,6 +790,15 @@ def main(logger: logging.Logger|None = None) -> None:
         modified = True
 
 #endregion
+
+    elif args.command == "change-fx-quote":
+        asset_pair = args.asset_pair.split("/")
+        if len(asset_pair) != 2:
+            raise ValueError(
+                "Please provide the asset pair in the format `asset1/asset2`",
+            )
+        modified, msg = change_fx_quote(session, info_branch, info_date, asset_pair[0], asset_pair[1], args.new_quote)
+        logger.info(msg)
 
     else:
         msg=f"Command {args.command} not recognized"

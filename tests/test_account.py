@@ -101,9 +101,11 @@ class TestAccount(unittest.TestCase):
         assert ACC_2.print_structure(ASSET_DB) == expected_structure #noqa: S101
 
         expected_summary = (
-            f"Account Summary: {ACC_2.name} {ACC_2.unit}\n"
-            "sa0:       € 102          € 102\nsa1:       € 64           € 64\n"
-            "sa3:       ¥ 10,0000      € 714.29"
+            f"Account Summary: {Color.RED}acc2{Color.RESET} {Color.YELLOW}EUR{Color.RESET}\n"  # noqa: E501
+            f"{Color.CYAN}sa0{Color.RESET}:                {Color.GREEN}€ 102{Color.RESET}                    {Color.GREEN}€ 102{Color.RESET}\n" # noqa: E501
+            f"{Color.CYAN}sa1{Color.RESET}:                {Color.GREEN}€ 64{Color.RESET}                     {Color.GREEN}€ 64{Color.RESET}\n" # noqa: E501
+            f"{Color.CYAN}sa3{Color.RESET}:                {Color.GREEN}¥ 10,0000{Color.RESET}                {Color.GREEN}€ 714.29{Color.RESET}\n" # noqa: E501
+            f"{Color.YELLOW}TOTAL{Color.RESET}:              {Color.MAGENTA}{Color.RESET}                         {Color.GREEN}€ 880.29{Color.RESET}\n" # noqa: E501
         )
         assert ACC_2.print_account_summary(ASSET_DB, FXM) == expected_summary #noqa: S101
 

@@ -158,20 +158,16 @@ class FxMarket:
             asset1: str,
             asset2: str,
             rate: float,
-        ) -> bool:
+        ) -> tuple[bool, str]:
         """Modify an existing quote in the FX market."""
         if rate <= 0:
-            msg = f"Rate must be positive, not {rate}"
-            raise ValueError(msg)
+            return False, f"Rate must be positive, not {rate}"
         if asset1 == asset2:
-            msg=f"Cannot modify quote for identical assets: {asset1}/{asset2}"
-            raise ValueError(msg)
+            return False, f"Cannot modify quote for identical assets: {asset1}/{asset2}"
         if (asset1, asset2) not in self.quotes:
             if (asset2, asset1) in self.quotes:
                 self.quotes[(asset1, asset2)] = 1 / rate
-            else:
-                msg = f"Quote for {asset1}/{asset2} does not exist"
-                raise ValueError(msg)
-
+                return True, f"Modified quote for {asset1}/{asset2} to {1 / rate}"
+            return False, f"Quote for {asset1}/{asset2} does not exist"
         self.quotes[(asset1, asset2)] = rate
-        return True
+        return True, f"Modified quote for {asset1}/{asset2} to {rate}"

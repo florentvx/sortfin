@@ -77,10 +77,10 @@ class Account:  # noqa: PLW1641
         if path is None or path.is_empty:
             return self
         if self.sub_accounts is None:
-            msg = f"account {self.name} is terminal and cannot have sub_accounts"
+            msg = f"account {self.name} is terminal and cannot have sub_accounts.\n"
             raise ValueError(msg)
         if path.root_folder is None:
-            msg="path.root_folder is None"
+            msg="path.root_folder is None.\n"
             raise ValueError(msg)
         sa_match_list = [
             sa
@@ -99,7 +99,7 @@ class Account:  # noqa: PLW1641
         if path.is_empty:
             return False
         if self.sub_accounts is None:
-            msg = f"account {self.name} is terminal and cannot have sub_accounts"
+            msg = f"account {self.name} is terminal and cannot have sub_accounts.\n"
             raise ValueError(msg)
         sa_match_list = [
             sa
@@ -268,25 +268,44 @@ class Account:  # noqa: PLW1641
             unit: str|None = None,
         ) -> str:
         res = ""
+        total = 0
+        def _line_to_str(name: str, price1: Price|None, price2: Price) -> str:
+            _price1 = price1 if price1 is not None else ""
+            color1 = Color.GREEN if price1 is not None and price1.value > 0 \
+                else Color.MAGENTA
+            len_name = len(name)
+            space1 = 30 - len_name
+            len_val1 = len(str(_price1))
+            space2 = 25 - len_val1
+            color2 = Color.GREEN if price2 is not None and price2.value > 0 \
+                else Color.MAGENTA
+            return (
+                f"\n{name}:{' ' * space1}"
+                f"{color1}{_price1}{Color.RESET}{' ' * space2}"
+                f"{color2}{price2}{Color.RESET}"
+            )
+
         for name, price1, price2 in self.get_account_summary(
             asset_db,
             fx_mkt,
             path,
             unit,
-            ):
-            value1 = str(price1)
-            len_name = len(name)
-            space1 = 10 - len_name
-            len_val1 = len(value1)
-            space2 = 15 - len_val1
-            res += f'\n{name}:{" " * space1}{value1}{" " * space2}{price2}'
+        ):
+            total += price2.value
+            res += _line_to_str(f"{Color.CYAN}{name}{Color.RESET}", price1, price2)
         asset_unit = asset_db.get_asset_from_name(self.unit)
         if asset_unit is None:
             msg=f"asset {self.unit} not found in asset database"
             raise ValueError(msg)
         return (
             f"Account Summary: "
-            f"{self.name} {asset_unit.name}" + res
+            f"{Color.RED}{self.name if self.name != 'root' else 'TOTAL'}{Color.RESET}"
+            f" {Color.YELLOW}{asset_unit.name}{Color.RESET}{res}"
+            f"{_line_to_str(
+                f'{Color.YELLOW}TOTAL{Color.RESET}',
+                None,
+                Price(total, asset_unit)
+            )}\n"
         )
 
     def add_account(
@@ -329,11 +348,14 @@ class Account:  # noqa: PLW1641
             sub_accounts=[acc.copy() for acc in self.sub_accounts],
         )
 
-    def diff(self, other: Account, memory: str = "") -> str:  # noqa: C901, PLR0912
+    def diff(self, other: Account, memory: str|None = None) -> str:  # noqa: C901, PLR0912
         if not isinstance(other, Account):
             msg="other is not an account"
             raise TypeError(msg)
-        title = f"Account Differences for {memory + self.name}:\n"
+        title = (
+            f"Account Differences for "
+            f"{memory + self.name}:\n"
+        ) if memory is not None else ""
         res = ""
         test_res = False
         test_res_2 = False
@@ -368,24 +390,30 @@ class Account:  # noqa: PLW1641
             other_sub_accounts = {
                 sub_acc.name: sub_acc for sub_acc in other.sub_accounts
             }
-
+            new_memory = (memory + self.name + "/") if memory is not None else ""
             for name, sub_acc in self_sub_accounts.items():
                 if name in other_sub_accounts:
                     sub_acc_diff = sub_acc.diff(
                         other_sub_accounts[name],
-                        memory=memory + self.name + "/",
+                        memory=new_memory,
                     )
                     if sub_acc_diff != "":
                         test_res_2 = True
                         res += sub_acc_diff
                 else:
-                    test_res = True
-                    res += f"{Color.RED}Missing Sub-Account {name}{Color.RESET}\n"
+                    test_res_2 = True
+                    res += (
+                        f"{Color.RED}Missing Sub-Account "
+                        f"{new_memory}{name}{Color.RESET}\n"
+                    )
 
             for name in other_sub_accounts:
                 if name not in self_sub_accounts:
-                    test_res = True
-                    res += f"{Color.GREEN}New Sub-Account {name}{Color.RESET}\n"
+                    test_res_2 = True
+                    res += (
+                        f"{Color.GREEN}New Sub-Account "
+                        f"{new_memory}{name}{Color.RESET}\n"
+                    )
         if test_res:
             return title + res
         if test_res_2:

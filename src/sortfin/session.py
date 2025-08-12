@@ -53,15 +53,15 @@ class Session:
         ) -> dt.datetime:
         """Get the date for a specific statement."""
         if is_after and is_before:
-            msg = "Cannot specify both is_after and is_before"
+            msg = "Cannot specify both is_after and is_before.\n"
             raise ValueError(msg)
         if date is None:
             if len(self.data) == 0:
-                msg = "No statements available in session data"
+                msg = "No statements available in session data.\n"
                 raise ValueError(msg)
             return max(self.dates(branch=branch))
         if not (is_exact_date or is_before or is_after):
-            msg = "Must specify at least one of is_exact_date, is_before, or is_after"
+            msg = "Must specify at least one : is_exact_date, is_before, or is_after.\n"
             raise ValueError(msg)
         is_exact_date_only = is_exact_date and not (is_before or is_after)
         if is_exact_date_only and (date, branch) not in self.data:
@@ -85,13 +85,13 @@ class Session:
         if is_before:
             statement_date_list = [dte for (dte, _) in self.data if dte < date]
             if len(statement_date_list) == 0:
-                msg = f"No statement found before or on {date}"
+                msg = f"No statement found before or on {date}.\n"
                 raise ValueError(msg)
             return max(statement_date_list)
         assert is_after # noqa: S101
         statement_date_list = [dte for (dte, _) in self.data if dte > date]
         if len(statement_date_list) == 0:
-            msg = f"No statement found after or on {date}"
+            msg = f"No statement found after or on {date}.\n"
             raise ValueError(msg)
         return min(statement_date_list)
 

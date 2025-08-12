@@ -1,16 +1,15 @@
-import datetime as dt
 import logging
 import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
+from src.sortfin.account_path import AccountPath
 from src.sortfin.cli.cli_statement import (
     load_session_from_yaml,
     load_session_info,
-    save_session_to_yaml,
 )
-from src.sortfin.cmd import delete_date, show_dates
+from src.sortfin.cmd import show_diff
 from src.sortfin.session import Session
 
 logging.basicConfig(level=logging.INFO)
@@ -33,15 +32,21 @@ else:
 file_path = main_path / (info_session + ".yaml")
 session = load_session_from_yaml(file_path)
 
-logger.info(show_dates(session, Session.DEFAULT_BRANCH))
-
-modified, msg = delete_date(
-    session, Session.DEFAULT_BRANCH, info_date,
-    dt.datetime(2017, 11, 11, tzinfo=dt.timezone.utc),
+ps = session.print_summary(
+    date=info_date,
+    branch=Session.DEFAULT_WORKING_BRANCH,
+    acc_path=AccountPath("Accounts/Revolut"),
 )
-logger.info(msg)
-if modified:
-    save_session_to_yaml(session, file_path)
-    msg=f"Session modified and saved to {file_path}\n"
-    logger.info(msg)
+logger.info(ps)
+
+pd = show_diff(
+    session,
+    branch_ref=Session.DEFAULT_BRANCH,
+    date_ref=info_date,
+    date=info_date,
+    branch=Session.DEFAULT_WORKING_BRANCH,
+)
+logger.info(pd)
+logger.info("END")
+
 

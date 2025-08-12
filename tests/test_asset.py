@@ -26,6 +26,7 @@ class TestAsset(unittest.TestCase):
         assert GBP.show_value(123456.123456) == "£ 123,456.12" #noqa: S101
         assert JPY.show_value(12345678.926456) == "¥ 1234,5679" #noqa: S101
         assert USD.show_value(-9999.999) == "- $ 10,000" #noqa: S101
+        assert USD.show_value(127.0346784) == "$ 127.03" #noqa: S101
 
     def test_asset_copy(self) -> None:
         eur_copy = EUR.copy()

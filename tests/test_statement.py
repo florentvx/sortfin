@@ -113,8 +113,8 @@ class TestStatement(unittest.TestCase):
         log_2 = self.my_state.diff(self.my_state2)
         bmk_2 = (
             "Date: 2025-01-05 -> 2025-02-05\n"
-            "Account Structure Differences:\n "
-            "Account Differences for root/europe/my_bank:\n"
+            "Account Structure Differences:\n"
+            "Account Differences for europe/my_bank:\n"
             f"{Color.YELLOW}Value: 1000 -> 100{Color.RESET}\n\n"
         )
         if log_2 != bmk_2:
@@ -123,8 +123,8 @@ class TestStatement(unittest.TestCase):
         log_3 = self.my_state.diff(self.my_state3)
         bmk_3 = (
             "Date: 2025-01-05 -> 2025-03-05\n"
-            "Account Structure Differences:\n "
-            "Account Differences for root/usa/my_investment:\n"
+            "Account Structure Differences:\n"
+            "Account Differences for usa/my_investment:\n"
             f"{Color.YELLOW}Unit: USD -> JPY{Color.RESET}\n"
             f"{Color.YELLOW}Value: 145600.2 -> 123456{Color.RESET}\n\n"
         )
@@ -134,11 +134,11 @@ class TestStatement(unittest.TestCase):
         log_4 = self.my_state.diff(self.my_state4)
         bmk_4 = (
             "Date: 2025-01-05 -> 2025-04-05\n"
-            "Account Structure Differences:\n "
-            "Account Differences for root/europe:\n"
+            "Account Structure Differences:\n"
+            "Account Differences for europe:\n"
             f"{Color.YELLOW}Unit: EUR -> BTC{Color.RESET}\n\n"
             "FX Market Differences:\n"
-            "BTC/JPY: Not present in this statement\n"
+            f"{Color.GREEN}New Entry: BTC/JPY: 140000{Color.RESET}\n"
         )
         if log_4 != bmk_4:
             assert log_4 == bmk_4 # noqa: S101

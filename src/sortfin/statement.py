@@ -97,7 +97,7 @@ class Statement:
     def print_structure(self, asset_db: AssetDatabase) -> str:
         return (
             f"{self.account.print_structure(asset_db)}\n"
-            f"{self.fx_market}"
+            f"{self.fx_market}\n"
         )
 
     def print_summary(
@@ -115,7 +115,7 @@ class Statement:
 
     def diff(self, other: Statement) -> str:
         if not isinstance(other, Statement):
-            msg="The other object must be an instance of statement"
+            msg="The other object must be an instance of statement\n"
             raise TypeError(msg)
         res = ""
         if self.date != other.date:
@@ -126,7 +126,7 @@ class Statement:
 
         # Compare account structures
         diff_acc_struct = self.account.diff(other.account)
-        res += f"Account Structure Differences:\n {diff_acc_struct}\n" \
+        res += f"Account Structure Differences:\n{diff_acc_struct}\n" \
             if len(diff_acc_struct) > 0 else ""
 
         # Compare FX markets
@@ -136,8 +136,8 @@ class Statement:
         ]:
             if self.fx_market.quotes[k] != other.fx_market.quotes[k]:
                 res_fx += (
-                    f"{k[0]}/{k[1]}: {self.fx_market.quotes[k]} "
-                    f"-> {other.fx_market.quotes[k]}\n"
+                    f"{k[0]}/{k[1]}: {Color.YELLOW}{self.fx_market.quotes[k]} "
+                    f"-> {other.fx_market.quotes[k]}{Color.RESET}\n"
                 )
         for k in [
             pair for pair in self.fx_market.quotes if pair not in other.fx_market.quotes
@@ -150,8 +150,8 @@ class Statement:
             pair for pair in other.fx_market.quotes if pair not in self.fx_market.quotes
         ]:
             res_fx += (
-                f"{k[0]}/{k[1]}: "
-                f"Not present in this statement\n"
+                f"{Color.GREEN}New Entry: {k[0]}/{k[1]}: "
+                f"{other.fx_market.quotes[k]}{Color.RESET}\n"
             )
         res += f"FX Market Differences:\n{res_fx}" if len(res_fx) > 0 else ""
 

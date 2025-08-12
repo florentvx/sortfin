@@ -65,7 +65,11 @@ class Asset:
             res += "".join(
                 value_list[(m+i*self.separator_param):(m+(i+1)*self.separator_param)],
             )
+        adding_zero_to_decimal = "".join([
+            "0"
+            for k in range(self.decimal_param - int(math.log10(remainer+1e-10)) - 1)
+        ])
         return (
             f"{'- ' if factor<0 else ''}{self.symbol} {res}"
-            f"{'.' + str(remainer) if remainer !=0 else ''}"
+            f"{'.' + adding_zero_to_decimal + str(remainer) if remainer !=0 else ''}"
         )
